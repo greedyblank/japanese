@@ -672,6 +672,101 @@ input, textarea, select { font: inherit; }
   border-radius: 6px; padding: 8px; max-height: 200px; overflow-y: auto;
   margin-top: 10px;
 }
+
+/* ============================== Tag Cloud Card Grid ============================== */
+.tag-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+@media (min-width: 640px) { .tag-card-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 900px) { .tag-card-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1280px) { .tag-card-grid { grid-template-columns: repeat(5, 1fr); } }
+
+.tag-card {
+  border-radius: 8px; border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03);
+  padding: 8px 10px; cursor: pointer; transition: all 0.15s;
+}
+.tag-card:hover { border-color: var(--accent); background: rgba(56,189,248,0.06); }
+.tag-card.selected { border-color: var(--accent2); background: rgba(52,211,153,0.1); }
+.tag-card-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 6px; margin-bottom: 4px;
+}
+.tag-card-name { font-size: 12px; font-weight: 600; color: var(--fg); }
+.tag-card:hover .tag-card-name { color: var(--accent2); }
+.tag-card-count { font-size: 10px; color: var(--fg-dim); flex-shrink: 0; }
+.tag-card-kids { font-size: 10px; line-height: 1.3; }
+.tag-card-kid { color: var(--fg-muted); }
+.tag-card-kid b { color: var(--fg-dim); font-weight: 400; }
+.tag-card-more { color: var(--fg-dim); margin-left: 4px; }
+
+/* 展开的卡片（占满整行） */
+.tag-card.expanded {
+  grid-column: 1 / -1;
+  border-color: rgba(52,211,153,0.4);
+  background: rgba(52,211,153,0.04);
+  box-shadow: 0 0 18px rgba(52,211,153,0.08);
+}
+.tag-card.expanded .tag-card-head { border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 8px; }
+.tag-card.expanded .tag-card-name { font-size: 14px; }
+.tag-card-subtree {
+  display: flex; flex-wrap: wrap; gap: 3px;
+  max-height: 32vh; overflow-y: auto; padding-right: 4px;
+}
+.tag-sub-pill {
+  font-size: 11px; padding: 1px 8px; border-radius: 10px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+  color: var(--fg); cursor: pointer; display: inline-flex; align-items: baseline; gap: 3px;
+  transition: all 0.12s;
+}
+.tag-sub-pill:hover { border-color: var(--accent); background: rgba(56,189,248,0.1); }
+.tag-sub-pill.selected { background: rgba(52,211,153,0.2); border-color: var(--accent2); color: var(--accent2); }
+.tag-sub-pill .cnt { color: var(--fg-dim); font-size: 10px; }
+.tag-sub-pill .arr { color: var(--fg-dim); font-size: 9px; cursor: pointer; margin-right: 2px; }
+.tag-sub-group { display: flex; flex-wrap: wrap; gap: 3px; padding-left: 10px; margin-left: 4px; border-left: 1px solid rgba(52,211,153,0.2); }
+
+/* Tag cloud detail (词条列表) */
+.tag-cloud-detail-box {
+  border-top: 1px solid var(--border); padding-top: 10px;
+}
+.tag-breadcrumb { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--fg-dim); margin-bottom: 8px; }
+.tag-breadcrumb a { color: var(--accent); cursor: pointer; }
+.tag-breadcrumb a:hover { text-decoration: underline; }
+.tag-breadcrumb .cur { color: var(--accent2); font-weight: 700; }
+.tag-detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
+.tag-detail-word {
+  cursor: pointer; padding: 6px 10px; border-radius: 6px;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+  transition: all 0.12s;
+}
+.tag-detail-word:hover { background: rgba(56,189,248,0.08); border-color: var(--accent); }
+.tag-detail-word .kw { font-weight: 700; color: var(--fg); font-size: 14px; }
+.tag-detail-word .rw { color: var(--fg-dim); font-size: 10px; font-family: monospace; margin-left: 4px; }
+.tag-detail-word .mm { color: var(--accent2); font-size: 11px; }
+
+/* ============================== Tag Browser Modal ============================== */
+.tag-browser-modal { max-width: 1000px; width: 95vw; max-height: 90vh; }
+.tag-browser-layout { display: grid; grid-template-columns: 320px 1fr; gap: 12px; min-height: 60vh; }
+@media (max-width: 800px) { .tag-browser-layout { grid-template-columns: 1fr; } }
+.tb-left, .tb-right { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+.tb-head { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.tb-body { padding: 6px; overflow-y: auto; flex: 1; }
+.tb-search { width: 100%; padding: 5px 8px; font-size: 12px; margin-bottom: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--fg); }
+.tb-tree-node { font-size: 12px; }
+.tb-tree-row { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 4px; cursor: pointer; }
+.tb-tree-row:hover { background: rgba(56,189,248,0.06); }
+.tb-tree-row.active { background: rgba(56,189,248,0.15); color: var(--accent); }
+.tb-tree-arr { width: 12px; font-size: 9px; color: var(--fg-dim); cursor: pointer; }
+.tb-tree-label { flex: 1; }
+.tb-tree-cnt { font-size: 10px; color: var(--fg-dim); }
+
+/* AI restructure preview */
+.restructure-preview { font-size: 12px; }
+.restructure-stat { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.25); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; font-size: 11px; }
+.restructure-missing { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; font-size: 11px; color: #fcd34d; }
+.restructure-missing .miss-tag { display: inline-block; background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 4px; margin: 2px 2px 0 0; font-size: 10px; }
 </style>
 </head>
 <body>
@@ -747,10 +842,17 @@ input, textarea, select { font: inherit; }
   </div>
 </section>
 
-<!-- ============================== Tag Cloud ============================== -->
+<!-- ============================== Tag Cloud (卡片网格) ============================== -->
 <section class="tag-cloud">
-  <h2>🏷 标签云</h2>
-  <div class="tag-cloud-items" id="tag-cloud"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+    <h2 style="margin:0;">🏷 标签云 <span style="font-size:10px;color:var(--fg-dim);font-weight:400;">点卡片展开 · 点标签看词条 · Shift+点标签进全屏</span></h2>
+    <div style="display:flex;gap:6px;">
+      <button class="btn" onclick="restructureTagsWithAI()" title="让 AI 根据现有词条重组标签树">✨ AI 重组</button>
+      <button class="btn" onclick="openTagBrowser()">🗂 全屏浏览器 →</button>
+    </div>
+  </div>
+  <div id="tag-cloud" class="tag-card-grid"></div>
+  <div id="tag-cloud-detail" class="hidden" style="margin-top:10px;"></div>
 </section>
 
 <!-- ============================== Add/Edit Modal ============================== -->
@@ -1047,6 +1149,33 @@ input, textarea, select { font: inherit; }
   </div>
 </div>
 
+<!-- ============================== Tag Browser Modal ============================== -->
+<div class="modal-backdrop" id="tag-browser-modal">
+  <div class="modal tag-browser-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="margin:0;">🗂 标签浏览器</h3>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="btn" onclick="restructureTagsWithAI()">✨ AI 重组</button>
+        <button class="btn btn-gear" onclick="closeTagBrowser()">✕</button>
+      </div>
+    </div>
+    <div class="tag-breadcrumb" id="tag-browser-breadcrumb" style="margin-bottom:10px;"></div>
+    <div class="tag-browser-layout">
+      <div class="tb-left">
+        <div class="tb-head">
+          <input type="text" class="tb-search" placeholder="🔍 搜索标签或词条..." oninput="onTagBrowserSearch(this.value)">
+          标签树
+        </div>
+        <div class="tb-body" id="tag-tree"></div>
+      </div>
+      <div class="tb-right">
+        <div class="tb-head">详情</div>
+        <div class="tb-body" id="tag-detail"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ============================== AI Completion Modal ============================== -->
 <div class="modal-backdrop" id="ai-modal">
   <div class="modal" style="max-width: 680px;">
@@ -1188,9 +1317,11 @@ input, textarea, select { font: inherit; }
 // STATE
 // =========================================================================
 const STORAGE_KEY = 'japanese_kana_map_v1';
+const TAGGRAPH_KEY = 'japanese_kana_taggraph_v1';
 
 let state = {
   entries: [],            // 用户词条（含导入的默认数据）
+  tagGraph: {},           // 标签层级图 {tagId: {parent, aliases[], related[]}}
   filter: {
     layer: null,          // 选中的层 id (A-R)，null = 全部
     root: null,           // 选中的音根 key，null = 全部
@@ -1234,6 +1365,7 @@ function init() {
 function saveToStorage() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
+    localStorage.setItem(TAGGRAPH_KEY, JSON.stringify(state.tagGraph || {}));
   } catch (e) {
     toast('保存失败：' + e.message, 'error');
   }
@@ -1242,8 +1374,11 @@ function loadFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) state.entries = JSON.parse(raw);
+    const tg = localStorage.getItem(TAGGRAPH_KEY);
+    if (tg) state.tagGraph = JSON.parse(tg);
   } catch (e) {
     state.entries = [];
+    state.tagGraph = {};
   }
 }
 
@@ -1330,8 +1465,103 @@ function getRootsByLayer(layerId) {
 function getAllTags() {
   const set = new Set();
   state.entries.forEach(e => (e.tags || []).forEach(t => set.add(t)));
-  return [...set].sort();
+  Object.keys(state.tagGraph || {}).forEach(t => set.add(t));
+  return [...set];
 }
+
+// 解析 alias：把 alias 反查到 canonical tag
+function resolveTag(tagId) {
+  if (!tagId) return null;
+  if (state.tagGraph[tagId]) return tagId;
+  for (const [canonical, node] of Object.entries(state.tagGraph || {})) {
+    if ((node.aliases || []).includes(tagId)) return canonical;
+  }
+  return tagId;
+}
+
+// 该标签（含 alias）下的直接词条（不含子代）
+function getTagWords(tagId) {
+  const canonical = resolveTag(tagId);
+  if (!canonical) return [];
+  const variants = new Set([canonical]);
+  const node = state.tagGraph[canonical];
+  if (node) (node.aliases || []).forEach(a => variants.add(a));
+  return state.entries.filter(e => (e.tags || []).some(t => variants.has(t)));
+}
+
+// 该标签 + 所有后代标签（递归子树）
+function getTagSubtree(tagId) {
+  const canonical = resolveTag(tagId);
+  if (!canonical) return [];
+  const result = new Set([canonical]);
+  const node = state.tagGraph[canonical];
+  if (node) (node.aliases || []).forEach(a => result.add(a));
+  const stack = [canonical];
+  const visited = new Set([canonical]);
+  while (stack.length > 0) {
+    const cur = stack.pop();
+    getAllTags().forEach(t => {
+      if (visited.has(t)) return;
+      const tn = state.tagGraph[t];
+      if (tn && tn.parent && resolveTag(tn.parent) === cur) {
+        visited.add(t);
+        result.add(t);
+        const aliasNode = state.tagGraph[t];
+        if (aliasNode) (aliasNode.aliases || []).forEach(a => result.add(a));
+        stack.push(t);
+      }
+    });
+  }
+  return [...result];
+}
+
+function getTagWordsCumulative(tagId) {
+  const all = new Set(getTagSubtree(tagId));
+  return state.entries.filter(e => (e.tags || []).some(t => all.has(t)));
+}
+
+// 从根到当前标签的链路（面包屑）
+function getTagChain(tagId) {
+  const chain = [];
+  let cur = resolveTag(tagId);
+  const guard = new Set();
+  while (cur && !guard.has(cur)) {
+    guard.add(cur);
+    chain.unshift(cur);
+    const node = state.tagGraph[cur];
+    cur = node && node.parent ? resolveTag(node.parent) : null;
+  }
+  return chain;
+}
+
+function getTagChildren(tagId) {
+  const canonical = resolveTag(tagId);
+  return getAllTags().filter(t => {
+    const node = state.tagGraph[t];
+    return node && node.parent && resolveTag(node.parent) === canonical;
+  });
+}
+
+function getTagSiblings(tagId) {
+  const canonical = resolveTag(tagId);
+  const node = state.tagGraph[canonical];
+  const parent = node && node.parent ? resolveTag(node.parent) : null;
+  return getAllTags().filter(t => {
+    if (t === canonical) return false;
+    const tn = state.tagGraph[t];
+    const tp = tn && tn.parent ? resolveTag(tn.parent) : null;
+    return tp === parent;
+  });
+}
+
+function getRootTags() {
+  return getAllTags().filter(t => {
+    const node = state.tagGraph[t];
+    return !node || !node.parent;
+  });
+}
+
+function getTagCount(tagId) { return getTagWordsCumulative(tagId).length; }
 
 function getFilteredEntries() {
   const f = state.filter;
@@ -1634,25 +1864,646 @@ function escapeHtml(s) {
 }
 
 // =========================================================================
-// RENDER · Tag Cloud
+// RENDER · Tag Cloud (卡片网格 + inline 展开)
 // =========================================================================
+let tagCloudState = {
+  selectedTag: null,
+  expandedRoot: null,
+  expanded: new Set(),
+};
+
 function renderTagCloud() {
-  const container = document.getElementById('tag-cloud');
-  const tags = getAllTags();
-  if (tags.length === 0) {
-    container.innerHTML = '<span style="color:var(--fg-dim);font-size:11px;">暂无标签</span>';
+  const cloud = document.getElementById('tag-cloud');
+  const detail = document.getElementById('tag-cloud-detail');
+  if (!cloud) return;
+
+  const allTags = getAllTags();
+  if (allTags.length === 0) {
+    cloud.innerHTML = '<span style="color:var(--fg-dim);font-size:11px;">暂无标签 — 在词条编辑里添加，或点 [✨ AI 重组] 自动建系</span>';
+    detail.classList.add('hidden');
     return;
   }
-  container.innerHTML = tags.map(t => {
-    const active = state.filter.tag === t ? 'active' : '';
-    return `<span class="tag-cloud-pill ${active}" onclick="selectTag('${t}')">${t}</span>`;
-  }).join('') + (state.filter.tag ? `<span class="tag-cloud-pill" onclick="selectTag(null)" style="background:rgba(244,63,94,0.15);color:#fca5a5;border-color:rgba(244,63,94,0.3);">✕ 清除</span>` : '');
+
+  const roots = getRootTags();
+  const groupedRoots = roots.filter(t => state.tagGraph[t]);
+  const orphanRoots = roots.filter(t => !state.tagGraph[t]);
+
+  // 紧凑卡片
+  const compactCardHtml = (root) => {
+    const totalCount = getTagWordsCumulative(root).length;
+    const children = getTagChildren(root);
+    const top4 = children.map(c => ({ name: c, count: getTagWordsCumulative(c).length })).sort((a,b)=>b.count-a.count).slice(0,4);
+    const isSelected = tagCloudState.selectedTag === root;
+    const extra = children.length - top4.length;
+    return `
+      <div class="tag-card ${isSelected ? 'selected' : ''}" onclick="toggleTagCloudRoot('${escapeHtml(root).replace(/'/g,"\\'")}', event)">
+        <div class="tag-card-head">
+          <span class="tag-card-name">${escapeHtml(root)}</span>
+          <span class="tag-card-count">${totalCount}</span>
+        </div>
+        <div class="tag-card-kids">
+          ${top4.length > 0 ? top4.map(c => `<span class="tag-card-kid">${escapeHtml(c.name)} <b>·${c.count}</b></span>`).join('<span class="tag-card-kid"> · </span>') : '<span class="tag-card-kid" style="font-style:italic;">无子标签</span>'}
+          ${extra > 0 ? `<span class="tag-card-more">+${extra}</span>` : ''}
+        </div>
+      </div>
+    `;
+  };
+
+  // 展开卡片（占满整行）
+  const expandedCardHtml = (root) => {
+    const totalCount = getTagWordsCumulative(root).length;
+    const children = getTagChildren(root);
+    const renderNode = (tag, depth) => {
+      const kids = getTagChildren(tag);
+      const hasKids = kids.length > 0;
+      const isExp = tagCloudState.expanded.has(tag);
+      const isSel = tagCloudState.selectedTag === tag;
+      const cum = getTagWordsCumulative(tag).length;
+      const arr = hasKids ? `<span class="arr" onclick="event.stopPropagation();toggleTagCloudExpand('${escapeHtml(tag).replace(/'/g,"\\'")}')">${isExp ? '▾' : '▸'}</span>` : '';
+      return `<span style="display:inline-flex;align-items:baseline;">
+        ${arr}<span class="tag-sub-pill ${isSel ? 'selected' : ''}" onclick="goToTag('${escapeHtml(tag).replace(/'/g,"\\'")}', event)">${escapeHtml(tag)} <span class="cnt">${cum}</span></span>
+        ${isExp && hasKids ? `<span class="tag-sub-group">${kids.map(c => renderNode(c, depth+1)).join('')}</span>` : ''}
+      </span>`;
+    };
+    return `
+      <div class="tag-card expanded ${tagCloudState.selectedTag === root ? 'selected' : ''}">
+        <div class="tag-card-head">
+          <span class="tag-card-name" onclick="toggleTagCloudRoot('${escapeHtml(root).replace(/'/g,"\\'")}', event)">▾ ${escapeHtml(root)}</span>
+          <span class="tag-card-count">累计 ${totalCount} 词条</span>
+        </div>
+        <div class="tag-card-subtree">
+          ${children.length > 0 ? children.map(c => renderNode(c, 0)).join('') : '<span style="font-style:italic;color:var(--fg-dim);font-size:11px;">该根暂无子标签</span>'}
+        </div>
+      </div>
+    `;
+  };
+
+  let html = '';
+  groupedRoots.forEach(root => {
+    html += (root === tagCloudState.expandedRoot) ? expandedCardHtml(root) : compactCardHtml(root);
+  });
+  if (orphanRoots.length > 0) {
+    html += `<div style="grid-column:1/-1;font-size:10px;color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.05em;margin-top:6px;padding:0 4px;">未分组 (${orphanRoots.length})</div>`;
+    html += orphanRoots.map(t => compactCardHtml(t)).join('');
+  }
+  cloud.innerHTML = html;
+
+  // 底部词条列表（选中标签后）
+  if (tagCloudState.selectedTag) {
+    const tag = tagCloudState.selectedTag;
+    const allWords = getTagWordsCumulative(tag);
+    const directWords = getTagWords(tag);
+    const chain = getTagChain(tag);
+    detail.innerHTML = `
+      <div class="tag-cloud-detail-box fade-in">
+        <div class="tag-breadcrumb">
+          ${chain.map((c, i) => `<span class="${i === chain.length-1 ? 'cur' : ''}" onclick="goToTag('${escapeHtml(c).replace(/'/g,"\\'")}', event)">${escapeHtml(c)}</span>${i < chain.length-1 ? ' › ' : ''}`).join('')}
+          <span style="margin-left:auto;">累计 ${allWords.length} 词条${directWords.length < allWords.length ? ` · 直接 ${directWords.length}` : ''}</span>
+        </div>
+        <div class="tag-detail-grid">
+          ${allWords.map(e => {
+            const senses = (e.meaning || '').split(/[;；?？]/)[0];
+            const directHit = (e.tags || []).includes(tag);
+            return `<div class="tag-detail-word" onclick="selectEntryAndScroll('${e.id}')">
+              <span class="kw">${escapeHtml(e.kana)}</span>
+              ${e.roman ? `<span class="rw">/${escapeHtml(e.roman)}/</span>` : ''}
+              ${!directHit ? `<span class="rw" style="color:var(--accent5);">${escapeHtml((e.tags||[]).find(t => getTagSubtree(tag).includes(t)) || '')}↗</span>` : ''}
+              <div class="mm">${escapeHtml(senses)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+    detail.classList.remove('hidden');
+  } else {
+    detail.classList.add('hidden');
+  }
 }
 
-function selectTag(t) {
-  state.filter.tag = state.filter.tag === t ? null : t;
+function toggleTagCloudRoot(root, event) {
+  if (event) event.stopPropagation();
+  if (tagCloudState.expandedRoot === root) {
+    tagCloudState.expandedRoot = null;
+  } else {
+    tagCloudState.expandedRoot = root;
+    tagCloudState.selectedTag = root;
+    state.filter.tag = root;
+    getTagChildren(root).forEach(c => tagCloudState.expanded.add(c));
+  }
   renderTagCloud();
   renderWordsList();
+}
+
+function toggleTagCloudExpand(tag) {
+  if (tagCloudState.expanded.has(tag)) tagCloudState.expanded.delete(tag);
+  else tagCloudState.expanded.add(tag);
+  renderTagCloud();
+}
+
+function goToTag(tag, event) {
+  if (event && event.shiftKey) { openTagBrowser(tag); return; }
+  tagCloudState.selectedTag = (tagCloudState.selectedTag === tag) ? null : tag;
+  state.filter.tag = tagCloudState.selectedTag;
+  if (tagCloudState.selectedTag) {
+    const chain = getTagChain(tagCloudState.selectedTag);
+    chain.forEach(t => tagCloudState.expanded.add(t));
+    if (chain.length > 0) {
+      const root = chain[0];
+      if (tagCloudState.expandedRoot !== root) {
+        tagCloudState.expandedRoot = root;
+        getTagChildren(root).forEach(c => tagCloudState.expanded.add(c));
+      }
+    }
+  }
+  renderTagCloud();
+  renderWordsList();
+}
+
+function selectEntryAndScroll(id) {
+  const e = state.entries.find(x => x.id === id);
+  if (!e) return;
+  state.selectedEntryId = id;
+  state.filter.layer = e.layer || null;
+  state.filter.root = e.root || null;
+  state.filter.tag = null;
+  tagCloudState.selectedTag = null;
+  renderLayerGrid();
+  renderRootsList();
+  renderWordsList();
+  renderDetail();
+  renderTagCloud();
+  setTimeout(() => {
+    const dp = document.getElementById('detail-panel');
+    if (dp) dp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 50);
+}
+
+// 兼容旧调用：selectTag
+function selectTag(t) {
+  tagCloudState.selectedTag = t;
+  state.filter.tag = t;
+  renderTagCloud();
+  renderWordsList();
+}
+
+// =========================================================================
+// TAG BROWSER (全屏)
+// =========================================================================
+let tagBrowserState = { selectedTag: null, expanded: new Set(), search: '' };
+
+function openTagBrowser(focusTag) {
+  document.getElementById('tag-browser-modal').classList.add('active');
+  if (focusTag) {
+    tagBrowserState.selectedTag = focusTag;
+    getTagChain(focusTag).forEach(t => tagBrowserState.expanded.add(t));
+  }
+  renderTagBrowser();
+}
+function closeTagBrowser() {
+  document.getElementById('tag-browser-modal').classList.remove('active');
+}
+function onTagBrowserSearch(v) {
+  tagBrowserState.search = v.trim();
+  renderTagBrowser();
+}
+
+function renderTagBrowser() {
+  const tree = document.getElementById('tag-tree');
+  const detail = document.getElementById('tag-detail');
+  // 面包屑
+  const bc = document.getElementById('tag-browser-breadcrumb');
+  if (tagBrowserState.selectedTag) {
+    const chain = getTagChain(tagBrowserState.selectedTag);
+    bc.innerHTML = chain.map((t, i) => `<span class="${i===chain.length-1?'cur':''}" onclick="selectTagInBrowser('${escapeHtml(t).replace(/'/g,"\\'")}')">${escapeHtml(t)}</span>${i<chain.length-1?' › ':''}`).join('');
+  } else { bc.innerHTML = '<span style="color:var(--fg-dim);">未选中</span>'; }
+
+  renderTagTree();
+  renderTagDetail();
+}
+
+function renderTagTree() {
+  const container = document.getElementById('tag-tree');
+  const roots = getRootTags();
+  const grouped = roots.filter(t => state.tagGraph[t]);
+  const orphan = roots.filter(t => !state.tagGraph[t]);
+  const search = tagBrowserState.search.toLowerCase();
+
+  const matches = (tag) => !search || tag.toLowerCase().includes(search) || getTagWordsCumulative(tag).some(e => (e.kana + e.meaning).toLowerCase().includes(search));
+
+  const renderNode = (tag, depth) => {
+    if (!matches(tag) && !getTagSubtree(tag).some(matches)) return '';
+    const kids = getTagChildren(tag);
+    const hasKids = kids.length > 0;
+    const isExp = tagBrowserState.expanded.has(tag);
+    const isSel = tagBrowserState.selectedTag === tag;
+    const cnt = getTagWordsCumulative(tag).length;
+    const arr = hasKids ? `<span class="tb-tree-arr" onclick="event.stopPropagation();toggleTagExpand('${escapeHtml(tag).replace(/'/g,"\\'")}')">${isExp?'▾':'▸'}</span>` : '<span class="tb-tree-arr"></span>';
+    return `<div class="tb-tree-node">
+      <div class="tb-tree-row ${isSel?'active':''}" style="padding-left:${depth*14+4}px" onclick="selectTagInBrowser('${escapeHtml(tag).replace(/'/g,"\\'")}')">
+        ${arr}<span class="tb-tree-label">${escapeHtml(tag)}</span><span class="tb-tree-cnt">${cnt}</span>
+      </div>
+      ${isExp && hasKids ? kids.map(c => renderNode(c, depth+1)).join('') : ''}
+    </div>`;
+  };
+
+  let html = '';
+  for (const r of grouped) html += renderNode(r, 0);
+  if (orphan.length > 0) {
+    html += `<div style="font-size:10px;color:var(--fg-dim);padding:8px 4px 4px;text-transform:uppercase;letter-spacing:0.05em;">未分组 (${orphan.length})</div>`;
+    for (const r of orphan) html += renderNode(r, 0);
+  }
+  container.innerHTML = html || '<div style="color:var(--fg-dim);font-size:12px;padding:12px;">暂无标签</div>';
+}
+
+function toggleTagExpand(tag) {
+  if (tagBrowserState.expanded.has(tag)) tagBrowserState.expanded.delete(tag);
+  else tagBrowserState.expanded.add(tag);
+  renderTagTree();
+}
+function selectTagInBrowser(tag) {
+  tagBrowserState.selectedTag = tag;
+  getTagChain(tag).forEach(t => tagBrowserState.expanded.add(t));
+  renderTagBrowser();
+}
+
+function renderTagDetail() {
+  const panel = document.getElementById('tag-detail');
+  const tag = tagBrowserState.selectedTag;
+  if (!tag) {
+    panel.innerHTML = '<div style="text-align:center;color:var(--fg-dim);padding:40px 20px;">🏷<br>从左侧选择一个标签<br><span style="font-size:11px;">或点 ✨ AI 重组 自动生成层级结构</span></div>';
+    return;
+  }
+  const chain = getTagChain(tag);
+  const parent = chain.length >= 2 ? chain[chain.length-2] : null;
+  const siblings = getTagSiblings(tag);
+  const children = getTagChildren(tag);
+  const node = state.tagGraph[tag] || {};
+  const aliases = node.aliases || [];
+  const related = node.related || [];
+  const directWords = getTagWords(tag);
+  const allWords = getTagWordsCumulative(tag);
+
+  const pillBtn = (t, color) => `<span class="tag-sub-pill" onclick="selectTagInBrowser('${escapeHtml(t).replace(/'/g,"\\'")}')" style="color:${color};border-color:${color}40;background:${color}10;">${escapeHtml(t)} <span class="cnt">${getTagCount(t)}</span></span>`;
+
+  panel.innerHTML = `
+    <div class="fade-in">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+        <div><span style="font-size:22px;font-weight:700;color:var(--fg);">${escapeHtml(tag)}</span> <span style="font-size:12px;color:var(--fg-dim);margin-left:6px;">${allWords.length} 词条</span></div>
+        <div style="display:flex;gap:4px;">
+          <button class="btn" style="font-size:10px;padding:3px 8px;" onclick="editTag('${escapeHtml(tag).replace(/'/g,"\\'")}')">✎ 编辑</button>
+          <button class="btn" style="font-size:10px;padding:3px 8px;color:var(--accent2);" onclick="addWordToTag('${escapeHtml(tag).replace(/'/g,"\\'")}')">+ 加词</button>
+          <button class="btn" style="font-size:10px;padding:3px 8px;color:#fca5a5;" onclick="deleteTag('${escapeHtml(tag).replace(/'/g,"\\'")}')">✕ 删除</button>
+        </div>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:10px;margin-bottom:12px;font-size:12px;display:flex;flex-direction:column;gap:6px;">
+        <div><span style="color:var(--fg-dim);font-size:10px;display:inline-block;width:50px;">位置</span> ${chain.map((t,i)=>`<span class="${i===chain.length-1?'cur':''}" style="${i===chain.length-1?'color:var(--accent2);font-weight:700;':'color:var(--accent);cursor:pointer;'}" onclick="selectTagInBrowser('${escapeHtml(t).replace(/'/g,"\\'")}')">${escapeHtml(t)}</span>${i<chain.length-1?' › ':''}`).join('')}</div>
+        ${parent ? `<div><span style="color:var(--fg-dim);font-size:10px;display:inline-block;width:50px;">↑ 父</span> ${pillBtn(parent,'#38bdf8')}</div>` : ''}
+        ${siblings.length ? `<div><span style="color:var(--fg-dim);font-size:10px;display:inline-block;width:50px;">↔ 兄弟</span> ${siblings.map(s=>pillBtn(s,'#fbbf24')).join(' ')}</div>` : ''}
+        ${children.length ? `<div><span style="color:var(--fg-dim);font-size:10px;display:inline-block;width:50px;">↓ 子</span> ${children.map(c=>pillBtn(c,'#34d399')).join(' ')}</div>` : ''}
+        ${aliases.length ? `<div><span style="color:var(--fg-dim);font-size:10px;display:inline-block;width:50px;">≡ 同义</span> ${aliases.map(a=>pillBtn(a,'#a855f7')).join(' ')}</div>` : ''}
+        ${related.length ? `<div><span style="color:var(--fg-dim);font-size:10px;display:inline-block;width:50px;">⇄ 相关</span> ${related.map(r=>pillBtn(r,'#f43f5e')).join(' ')}</div>` : ''}
+      </div>
+      <div style="font-size:11px;color:var(--fg-muted);margin-bottom:6px;">📚 标签下的词条 · 累计 ${allWords.length} 条${directWords.length<allWords.length?` · 直接 ${directWords.length}`:''}</div>
+      ${allWords.length === 0 ? '<div style="color:var(--fg-dim);font-size:12px;font-style:italic;">暂无词条</div>' :
+        allWords.map(e => {
+          const senses = (e.meaning||'').split(/[;；]/)[0];
+          const directHit = (e.tags||[]).includes(tag);
+          const inheritedFrom = !directHit ? (e.tags||[]).find(t => getTagSubtree(tag).includes(t)) : null;
+          return `<div onclick="jumpFromTagBrowserToEntry('${e.id}')" style="cursor:pointer;padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border);margin-bottom:4px;" class="tb-word-row">
+            <span style="font-size:14px;font-weight:700;color:var(--fg);">${escapeHtml(e.kana)}</span>
+            ${e.roman?`<span style="font-size:10px;color:var(--fg-dim);font-family:monospace;margin-left:4px;">/${escapeHtml(e.roman)}/</span>`:''}
+            <span style="font-size:11px;color:var(--accent2);margin-left:6px;">${escapeHtml(senses)}</span>
+            ${inheritedFrom?`<span style="font-size:9px;color:var(--accent5);margin-left:6px;">${escapeHtml(inheritedFrom)}↗</span>`:''}
+          </div>`;
+        }).join('')}
+      }
+    </div>
+  `;
+}
+
+function jumpFromTagBrowserToEntry(id) {
+  closeTagBrowser();
+  selectEntryAndScroll(id);
+}
+
+// Tag CRUD
+function editTag(tag) {
+  const node = state.tagGraph[tag] || { parent: '', aliases: [], related: [] };
+  const parent = prompt(`「${tag}」的父标签（留空=顶级）`, node.parent || '');
+  if (parent === null) return;
+  const aliases = prompt(`同义标签（逗号分隔）`, (node.aliases||[]).join(', '));
+  if (aliases === null) return;
+  const related = prompt(`相关标签（逗号分隔）`, (node.related||[]).join(', '));
+  if (related === null) return;
+  if (!state.tagGraph[tag]) state.tagGraph[tag] = {};
+  state.tagGraph[tag].parent = parent.trim() || null;
+  state.tagGraph[tag].aliases = aliases.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
+  state.tagGraph[tag].related = related.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
+  saveToStorage();
+  renderTagBrowser();
+  renderTagCloud();
+  toast('已更新标签', 'success');
+}
+function deleteTag(tag) {
+  if (!confirm(`删除标签「${tag}」？（仅删除层级信息，词条上的标签字符串保留）`)) return;
+  delete state.tagGraph[tag];
+  state.entries.forEach(e => { e.tags = (e.tags||[]).filter(t => t !== tag); });
+  saveToStorage();
+  renderTagBrowser();
+  renderTagCloud();
+  renderWordsList();
+  toast('已删除标签', 'success');
+}
+function addWordToTag(tag) {
+  const kana = prompt(`给标签「${tag}」添加词条（输入假名）`);
+  if (!kana) return;
+  const e = state.entries.find(x => x.kana === kana.trim());
+  if (!e) { toast('未找到该词条', 'error'); return; }
+  if (!e.tags) e.tags = [];
+  if (!e.tags.includes(tag)) e.tags.push(tag);
+  saveToStorage();
+  renderTagBrowser();
+  renderTagCloud();
+  toast(`已把「${kana}」加入「${tag}」`, 'success');
+}
+
+// =========================================================================
+// AI TAG RESTRUCTURE (20 大类 + 仅补漏)
+// =========================================================================
+// 标准 20 大类参考体系（参考韩国国立国语院 학습용 어휘 분류 + 中国学科门类）
+const TAG_TAXONOMY_ROOTS = [
+  '身体·健康·医疗', '情感·心理·性格', '人物·人际·家庭', '日常生活·起居',
+  '饮食·烹饪·食材', '服饰·美容·外观', '居住·建筑·家具', '交通·出行·地点',
+  '时间·季节·历法', '自然·天文·地理·生物', '教育·学习·知识', '工作·职业·经济·商业',
+  '科学·技术·方法', '文化·艺术·娱乐·媒体', '政治·法律·社会', '历史·宗教·哲学·传统',
+  '语言·文字·思维·逻辑', '抽象概念·数量·关系', '动作·行为·过程', '状态·性质·变化',
+];
+
+function collectTagsForAI() {
+  const all = getAllTags();
+  return all.map(t => {
+    const words = getTagWords(t);
+    return {
+      tag: t,
+      count: words.length,
+      samples: words.slice(0, 5).map(w => `${w.kana}(${(w.meaning||'').split(/[;；]/)[0]})`),
+    };
+  }).filter(t => t.count > 0 || state.tagGraph[t.tag]);
+}
+
+function buildTagRestructurePrompt(tagData) {
+  const tagList = tagData.map((t, i) => `${i+1}. ${t.tag} (${t.count}词条) — 例: ${t.samples.join(' | ')}`).join('\n');
+  const currentGraph = Object.keys(state.tagGraph || {}).length > 0
+    ? `\n【当前已有的标签图（请在此基础上优化）】\n${JSON.stringify(state.tagGraph, null, 2)}\n` : '';
+  const rootsList = TAG_TAXONOMY_ROOTS.map((r, i) => `   ${i+1}. ${r}`).join('\n');
+  return `你是日语词汇语义分类专家，参照「韩国国立国语院 한국어 학습용 어휘 分류」与「中国学科门类」融合思路，为日语学习者重组标签体系。
+
+【当前所有标签（带样例）】
+共 ${tagData.length} 个标签，**你的输出必须逐条覆盖，不能漏掉任何一个**。
+${tagList}
+${currentGraph}
+【参考顶级分类（共 ${TAG_TAXONOMY_ROOTS.length} 个，强制使用此 20 个为根）】
+${rootsList}
+
+规则：
+- 所有 parent 链最终必须收敛到上面 20 个根之一
+- **禁止创造新顶级**（如自创「其他」「杂项」等）
+- 看不准时按最主要语义归类；跨域词不必强行二选一，但要落进 20 根之一
+
+【任务】
+为每个标签生成结构化元数据：
+- parent: 父标签名（必须是上面 20 根之一，或另一个已存在的标签）
+- aliases: 同义/近义标签列表
+- related: 横向相关但非父子关系的标签
+
+【硬性约束】
+1. **最大深度 = 2 层**（根 → 中间子类 → 叶子）。叶子到根的 parent 链长度 ≤ 2。
+2. **必须覆盖全部 ${tagData.length} 个输入标签**——少一个都不行
+3. **禁止使用「其他」「杂项」「未分类」这类万能桶**作 parent
+4. 一个标签只能有一个 parent；不允许循环
+5. 同义词挑一个作 canonical，其余放 aliases
+
+【输出必须包含 processedTags 数组】
+在 tagGraph 同级额外输出 processedTags 数组，逐字列出你已处理的所有输入标签名。
+
+【输出要求】
+仅输出严格 JSON，无任何额外文字、markdown 代码块。格式：
+{
+  "processedTags": ["输入标签1", "输入标签2", ...],
+  "tagGraph": { "<标签名>": { "parent": "<父标签名或null>", "aliases": [], "related": [] }, ... }
+}`;
+}
+
+async function restructureTagsWithAI() {
+  const tagData = collectTagsForAI();
+  if (tagData.length === 0) { toast('还没有任何标签，先给词条加标签再让 AI 重组', 'error'); return; }
+  const completionLLM = getLLMSlot('completion');
+  if (!completionLLM.apiKey) {
+    toast('请先在 ⚙ 设置里填写「补全 LLM」的 API Key', 'error');
+    activeLLMTab = 'completion';
+    openSettingsModal();
+    return;
+  }
+  if (!confirm(`将让 AI 重组 ${tagData.length} 个标签的结构。\n\n现有的标签图会被覆盖（如有），词条上的标签字符串不会动。\n\n继续？`)) return;
+
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ AI 思考中...'; }
+  try {
+    const prompt = buildTagRestructurePrompt(tagData);
+    const resp = await callLLM(completionLLM, prompt, 8192);
+    const parsed = extractJSON(resp);
+    if (!parsed.tagGraph || typeof parsed.tagGraph !== 'object') throw new Error('响应缺少 tagGraph 字段');
+    showTagRestructurePreview(parsed.tagGraph);
+  } catch (e) {
+    toast('AI 重组失败：' + e.message, 'error');
+    console.error(e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✨ AI 重组'; }
+  }
+}
+
+function showTagRestructurePreview(rawGraph) {
+  const oldGraph = state.tagGraph || {};
+  const newGraph = JSON.parse(JSON.stringify(rawGraph));
+  const inputTags = collectTagsForAI().map(t => t.tag);
+
+  // 1) 修复悬空 parent
+  const referencedParents = new Set();
+  Object.values(newGraph).forEach(node => { if (node && node.parent) referencedParents.add(node.parent); });
+  referencedParents.forEach(p => { if (!newGraph[p]) newGraph[p] = { parent: null, aliases: [], related: [] }; });
+
+  // 2) 修复循环
+  const breakCycles = () => {
+    Object.entries(newGraph).forEach(([tag, node]) => {
+      const guard = new Set([tag]);
+      let cur = node && node.parent;
+      while (cur && !guard.has(cur)) { guard.add(cur); cur = newGraph[cur] && newGraph[cur].parent; }
+      if (cur === tag) newGraph[tag].parent = null;
+    });
+  };
+  breakCycles();
+
+  // 3) 硬性深度限制（max 2 跳）
+  const flattenDepth = (maxHops = 2) => {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      Object.entries(newGraph).forEach(([tag, node]) => {
+        if (!node || !node.parent) return;
+        const path = [];
+        let cur = tag;
+        const guard = new Set();
+        while (cur && newGraph[cur] && newGraph[cur].parent && !guard.has(cur)) { guard.add(cur); path.push(newGraph[cur].parent); cur = newGraph[cur].parent; }
+        if (path.length > maxHops) { newGraph[tag].parent = path[1] || null; changed = true; }
+      });
+    }
+  };
+  flattenDepth(2);
+
+  // 4) 根不在 20 标准根中的，按关键字兜底挂载
+  const rootSet = new Set(TAG_TAXONOMY_ROOTS);
+  const routeByKeyword = (tag) => {
+    const t = tag.toLowerCase();
+    if (/身|体|医|病|薬|痛|頭|手|足|胃|寝|健康/.test(t)) return '身体·健康·医疗';
+    if (/情|感|緒|心|怒|喜|悲|愛|憎|性|格/.test(t)) return '情感·心理·性格';
+    if (/人|親|家|友|妻|夫|父|母|児|女|兄|姉/.test(t)) return '人物·人际·家庭';
+    if (/日常|生活|起|寝|暮/.test(t)) return '日常生活·起居';
+    if (/食|飲|煮|焼|料理|味|料|飯/.test(t)) return '饮食·烹饪·食材';
+    if (/着|服|穿|化粧|裙|靴|美容/.test(t)) return '服饰·美容·外观';
+    if (/住|家|屋|建|門|窓|机|椅|家具/.test(t)) return '居住·建筑·家具';
+    if (/車|船|飛|道|街|行|走|都市|場所/.test(t)) return '交通·出行·地点';
+    if (/時|日|月|年|春|夏|秋|冬|季節|暦/.test(t)) return '时间·季节·历法';
+    if (/山|川|雨|風|星|月|日|木|花|草|犬|猫|魚|鳥|自然|生物/.test(t)) return '自然·天文·地理·生物';
+    if (/学|書|教|考|知|識|字|課|勉強/.test(t)) return '教育·学习·知识';
+    if (/金|買|売|商|仕事|職|業|経|貿/.test(t)) return '工作·职业·经济·商业';
+    if (/数|理|化|電|算|機|技|術|方|法|科学/.test(t)) return '科学·技术·方法';
+    if (/楽|歌|舞|画|映|劇|戯|遊|芸術|文化/.test(t)) return '文化·艺术·娱乐·媒体';
+    if (/政|治|法|律|社|会|権/.test(t)) return '政治·法律·社会';
+    if (/史|宗|仏|儒|道|神|哲|礼|歴史/.test(t)) return '历史·宗教·哲学·传统';
+    if (/語|言|詞|話|説|書|読|想|思|文字/.test(t)) return '语言·文字·思维·逻辑';
+    if (/大|小|多|少|高|低|冷|熱|良|悪|長|短|色|形/.test(t)) return '状态·性质·变化';
+    if (/為|する|やる|あげる|もらう|見|聞|使|行為|動作/.test(t)) return '动作·行为·过程';
+    return '抽象概念·数量·关系';
+  };
+  Object.entries(newGraph).forEach(([tag, node]) => {
+    if (node && !node.parent && !rootSet.has(tag)) node.parent = routeByKeyword(tag);
+  });
+  TAG_TAXONOMY_ROOTS.forEach(r => { if (!newGraph[r]) newGraph[r] = { parent: null, aliases: [], related: [] }; });
+
+  // 5) 漏掉的输入标签 → 兜底挂载
+  const missing = inputTags.filter(t => !newGraph[t]);
+  missing.forEach(t => { newGraph[t] = { parent: routeByKeyword(t), aliases: [], related: [] }; });
+
+  // 6) aliases 补条目
+  Object.entries(newGraph).forEach(([canonical, node]) => {
+    (node.aliases || []).forEach(a => { if (!newGraph[a]) newGraph[a] = { parent: canonical, aliases: [], related: [] }; });
+  });
+
+  const roots = Object.entries(newGraph).filter(([_, n]) => !n.parent).map(([t]) => t);
+  const bucketed = missing.length;
+  const newKeys = Object.keys(newGraph).filter(k => !oldGraph[k]);
+  const aliased = Object.values(newGraph).filter(n => n._isAliasOf).length;
+
+  window._lastMissingTags = missing.slice();
+  window._lastNewGraph = newGraph;
+
+  const html = `
+    <div class="restructure-preview">
+      <div class="restructure-stat">
+        <div style="color:var(--accent2);font-weight:600;margin-bottom:4px;">AI 重组结果（已自动清洗）</div>
+        <div>共 ${Object.keys(newGraph).length} 个标签 · ${roots.length} 个顶级（按 20 大类标准）</div>
+        <div style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;">
+          ${newKeys.length ? `<span style="color:var(--accent2);">新增 ${newKeys.length}</span>` : ''}
+          ${bucketed > 0 ? `<span style="color:#fcd34d;">AI 漏掉 ${bucketed} 个（已按关键字兜底）</span>` : `<span style="color:var(--accent2);">✓ 全覆盖</span>`}
+          ${aliased > 0 ? `<span style="color:var(--accent5);">${aliased} 个同义归并</span>` : ''}
+        </div>
+      </div>
+      ${bucketed > 0 ? `<div class="restructure-missing">
+        <div style="font-weight:600;margin-bottom:4px;">⚠ AI 漏处理的标签（${bucketed} 个，已按关键字粗归类）</div>
+        <div style="color:var(--fg-muted);margin-bottom:4px;">建议点 [↻ 仅补漏 ${bucketed} 个] 让 AI 专门为这些标签重新分类：</div>
+        ${missing.map(t => `<span class="miss-tag">${escapeHtml(t)}</span>`).join('')}
+      </div>` : ''}
+    </div>
+  `;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-backdrop active';
+  overlay.style.zIndex = '110';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:680px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h3 style="margin:0;">✨ AI 标签重组预览</h3>
+        <button class="btn btn-gear" onclick="this.closest('.modal-backdrop').remove()">✕</button>
+      </div>
+      <div style="max-height:55vh;overflow-y:auto;">${html}</div>
+      <div class="modal-actions" style="flex-wrap:wrap;">
+        <button class="btn" onclick="this.closest('.modal-backdrop').remove()">取消</button>
+        <button class="btn" onclick="rerunRestructure()">↻ 全部重跑</button>
+        ${bucketed > 0 ? `<button class="btn" style="background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.4);color:#fcd34d;" onclick="retryMissingTagsAI()">↻ 仅补漏 ${bucketed} 个</button>` : ''}
+        <button class="btn btn-primary" id="apply-restructure-btn">应用</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#apply-restructure-btn').onclick = () => {
+    state.tagGraph = newGraph;
+    saveToStorage();
+    overlay.remove();
+    tagCloudState.expandedRoot = null;
+    tagCloudState.selectedTag = null;
+    renderTagCloud();
+    if (document.getElementById('tag-browser-modal').classList.contains('active')) renderTagBrowser();
+    toast(`✓ 已应用 AI 重组（${Object.keys(newGraph).length} 标签）`, 'success');
+  };
+}
+
+function rerunRestructure() {
+  document.querySelectorAll('.modal-backdrop').forEach(el => { if (el.style.zIndex === '110') el.remove(); });
+  setTimeout(() => restructureTagsWithAI(), 50);
+}
+
+async function retryMissingTagsAI() {
+  const missing = window._lastMissingTags || [];
+  if (missing.length === 0) { toast('没有遗漏的标签', 'info'); return; }
+  const completionLLM = getLLMSlot('completion');
+  if (!completionLLM.apiKey) { toast('请先配置补全 LLM', 'error'); return; }
+  document.querySelectorAll('.modal-backdrop').forEach(el => { if (el.style.zIndex === '110') el.remove(); });
+
+  const allTagData = collectTagsForAI();
+  const missingTagData = allTagData.filter(t => missing.includes(t.tag));
+  const tagList = missingTagData.map((t, i) => `${i+1}. ${t.tag} (${t.count}词条) — 例: ${t.samples.join(' | ')}`).join('\n');
+  const rootsList = TAG_TAXONOMY_ROOTS.map((r, i) => `   ${i+1}. ${r}`).join('\n');
+  const prompt = `你之前漏掉了 ${missing.length} 个标签没分类，请只处理这些标签，把它们挂到 20 大类标准根下（可经由一个中间子类）。
+
+【待补分类的标签】
+${tagList}
+
+【20 大类标准根（必须收敛到其中之一）】
+${rootsList}
+
+【约束】
+- 最大深度 2 层（根 → 子 → 叶）
+- 只输出这 ${missing.length} 个标签的归类
+- parent 必须是 20 根之一或已有标签
+
+【输出 JSON】
+{ "processedTags": [${missing.map(t => `"${t}"`).join(', ')}], "tagGraph": { "<标签名>": { "parent": "<父或根>", "aliases": [], "related": [] } } }`;
+
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 补漏中...'; }
+  toast(`正在让 AI 补漏 ${missing.length} 个标签...`, 'info');
+  try {
+    const resp = await callLLM(completionLLM, prompt, 4096);
+    const parsed = extractJSON(resp);
+    if (!parsed.tagGraph) throw new Error('响应缺少 tagGraph');
+    const merged = { ...(window._lastNewGraph || {}), ...parsed.tagGraph };
+    showTagRestructurePreview(merged);
+  } catch (e) {
+    toast('补漏失败：' + e.message, 'error');
+    console.error(e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = `↻ 仅补漏 ${missing.length} 个`; }
+  }
 }
 
 // =========================================================================
