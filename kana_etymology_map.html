@@ -65,6 +65,7 @@ input, textarea, select { font: inherit; }
 .header-stats { display: flex; gap: 14px; font-size: 12px; color: var(--fg-muted); }
 .header-stats span b { color: var(--accent2); font-size: 14px; }
 .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sort-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(56,189,248,0.1); }
 .btn {
   padding: 6px 12px;
   background: var(--bg-elev);
@@ -788,8 +789,10 @@ input, textarea, select { font: inherit; }
     <button class="btn btn-ai disabled" id="ai-btn" onclick="openAIModal()" title="点击配置 API Key 后使用">✨ AI 补全</button>
     <button class="btn btn-gear" onclick="openSettingsModal()" title="LLM 设置">⚙️</button>
     <button class="btn" onclick="openPromptModal()">📚 Prompt</button>
-    <button class="btn" onclick="openBulkPaste()">📥 批量导入</button>
-    <button class="btn btn-primary" onclick="openAddModal()">+ 添加词条</button>
+    <button class="btn" onclick="exportJSON()" title="导出 JSON">⬇ 导出</button>
+    <label class="btn" title="导入 JSON" style="cursor:pointer;">⬆ 导入<input type="file" accept=".json,application/json" onchange="importJSON(event)" style="display:none;"></label>
+    <button class="btn" onclick="openBulkPaste()">📥 批量</button>
+    <button class="btn btn-primary" onclick="openAddModal()">+ 添加</button>
     <button class="btn" onclick="resetData()">↺ 重置</button>
   </div>
 </header>
@@ -799,6 +802,10 @@ input, textarea, select { font: inherit; }
   <span style="color: var(--fg-muted); font-size: 13px;">🔍</span>
   <input id="search-input" type="text" placeholder="搜索假名 / 汉字 / 释义 / 标签..." oninput="onSearchInput(this.value)">
   <span id="search-clear" style="color: var(--fg-dim); cursor: pointer; display: none;" onclick="clearSearch()">✕</span>
+  <div style="display:flex;gap:3px;border-left:1px solid var(--border);padding-left:8px;margin-left:4px;">
+    <button class="btn sort-btn" data-sort="kana" onclick="setSortMode('kana')" title="五十音序" style="font-size:11px;padding:3px 8px;">あ</button>
+    <button class="btn sort-btn" data-sort="roman" onclick="setSortMode('roman')" title="罗马字 A-Z" style="font-size:11px;padding:3px 8px;">A</button>
+  </div>
 </div>
 
 <!-- ============================== Layer Atlas ============================== -->
@@ -1357,6 +1364,11 @@ function init() {
   updateStats();
   populateLayerSelect();
   updateAIButton();
+  restoreFileSync();
+  // 同步排序按钮初始状态
+  document.querySelectorAll('.sort-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.sort === sortMode);
+  });
 }
 
 // =========================================================================
@@ -1366,6 +1378,7 @@ function saveToStorage() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
     localStorage.setItem(TAGGRAPH_KEY, JSON.stringify(state.tagGraph || {}));
+    if (fileSyncState.handle) syncToFileDebounced();
   } catch (e) {
     toast('保存失败：' + e.message, 'error');
   }
@@ -1684,6 +1697,15 @@ function renderWordsList() {
   const count = document.getElementById('words-count');
 
   let entries = getFilteredEntries();
+  // 排序：五十音序 或 罗马字 A-Z
+  entries = entries.slice().sort((a, b) => {
+    if (sortMode === 'roman') {
+      const ra = a.roman || romanizeKana(a.kana) || '';
+      const rb = b.roman || romanizeKana(b.kana) || '';
+      return ra.localeCompare(rb, 'en');
+    }
+    return (a.kana || '').localeCompare(b.kana || '', 'ja');
+  });
 
   if (state.filter.root) {
     const r = getRoot(state.filter.root);
@@ -2769,8 +2791,12 @@ function bulkImport() {
 function resetData() {
   if (!confirm('确认重置为默认数据？所有自定义词条将被清除。')) return;
   state.entries = (window.KANA_DATA?.ENTRIES || []).map((e, i) => ({ ...e, id: 'default-' + i }));
+  state.tagGraph = {};
   state.selectedEntryId = null;
   state.filter = { layer: null, root: null, tag: null, search: '' };
+  tagCloudState.selectedTag = null;
+  tagCloudState.expandedRoot = null;
+  tagCloudState.expanded = new Set();
   document.getElementById('search-input').value = '';
   document.getElementById('search-clear').style.display = 'none';
   saveToStorage();
@@ -2781,6 +2807,210 @@ function resetData() {
   renderTagCloud();
   updateStats();
   toast('已重置为默认数据');
+}
+
+// =========================================================================
+// SORT MODE
+// =========================================================================
+let sortMode = localStorage.getItem('japanese_kana_sort') || 'kana';
+function setSortMode(mode) {
+  sortMode = mode;
+  localStorage.setItem('japanese_kana_sort', mode);
+  document.querySelectorAll('.sort-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.sort === mode);
+  });
+  renderWordsList();
+  renderRootsList();
+}
+function toggleSortMode() {
+  setSortMode(sortMode === 'kana' ? 'roman' : 'kana');
+}
+
+// =========================================================================
+// JSON EXPORT / IMPORT
+// =========================================================================
+function exportJSON() {
+  if (state.entries.length === 0) { toast('暂无数据可导出', 'error'); return; }
+  const data = {
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    count: state.entries.length,
+    entries: state.entries,
+    tagGraph: state.tagGraph || {},
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `japanese_kana_map_${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`已导出 ${state.entries.length} 条 + 标签图`, 'success');
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const incoming = Array.isArray(data) ? data : (data.entries || []);
+      if (!Array.isArray(incoming)) throw new Error('格式错误：需要 entries 数组');
+      const existingIds = new Set(state.entries.map(x => x.id));
+      let added = 0;
+      for (const ent of incoming) {
+        if (!ent.kana) continue;
+        const id = ent.id && !existingIds.has(ent.id) ? ent.id : ('imp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6));
+        existingIds.add(id);
+        state.entries.push({ ...ent, id });
+        added++;
+      }
+      // 合并 tagGraph
+      if (data.tagGraph && typeof data.tagGraph === 'object') {
+        state.tagGraph = { ...(state.tagGraph || {}), ...data.tagGraph };
+      }
+      saveToStorage();
+      renderLayerGrid();
+      renderRootsList();
+      renderWordsList();
+      renderTagCloud();
+      updateStats();
+      toast(`导入成功：新增 ${added} 条`, 'success');
+    } catch (err) {
+      toast('导入失败：' + err.message, 'error');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// =========================================================================
+// FILE SYNC (File System Access API · Chrome/Edge)
+// =========================================================================
+let fileSyncState = { handle: null, lastSync: null };
+const FS_DB = 'japanese_kana_fs';
+const FS_STORE = 'handles';
+const FS_KEY = 'main';
+
+function _fsSupported() { return 'showSaveFilePicker' in window; }
+
+function _idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(FS_DB, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(FS_STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function _idbSaveHandle(handle) {
+  const db = await _idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(FS_STORE, 'readwrite');
+    tx.objectStore(FS_STORE).put(handle, FS_KEY);
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+  });
+}
+async function _idbLoadHandle() {
+  const db = await _idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(FS_STORE, 'readonly');
+    const req = tx.objectStore(FS_STORE).get(FS_KEY);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function bindLocalFile() {
+  if (!_fsSupported()) { toast('当前浏览器不支持文件同步（需 Chrome/Edge）', 'error'); return; }
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: 'japanese_kana_map.json',
+      types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+    });
+    fileSyncState.handle = handle;
+    await _idbSaveHandle(handle);
+    await syncToFile(true);
+    toast('✓ 已绑定本地文件，之后自动同步', 'success');
+    updateFileSyncStatus();
+  } catch (e) {
+    if (e.name !== 'AbortError') toast('绑定失败：' + e.message, 'error');
+  }
+}
+
+async function unbindLocalFile() {
+  fileSyncState.handle = null;
+  const db = await _idbOpen();
+  await new Promise((resolve) => {
+    const tx = db.transaction(FS_STORE, 'readwrite');
+    tx.objectStore(FS_STORE).delete(FS_KEY);
+    tx.oncomplete = resolve; tx.onerror = resolve;
+  });
+  updateFileSyncStatus();
+  toast('已解除文件同步', 'info');
+}
+
+async function verifyPermission(handle) {
+  const opts = { mode: 'readwrite' };
+  if ((await handle.queryPermission(opts)) === 'granted') return true;
+  if ((await handle.requestPermission(opts)) === 'granted') return true;
+  return false;
+}
+
+async function syncToFile(force) {
+  if (!fileSyncState.handle) return;
+  if (!force && !aiState.running) { /* 仍同步 */ }
+  try {
+    const handle = fileSyncState.handle;
+    if (!(await verifyPermission(handle))) return;
+    const writable = await handle.createWritable();
+    const data = { entries: state.entries, tagGraph: state.tagGraph || {}, savedAt: new Date().toISOString() };
+    await writable.write(JSON.stringify(data, null, 2));
+    await writable.close();
+    fileSyncState.lastSync = new Date();
+    updateFileSyncStatus();
+  } catch (e) {
+    console.error('[FileSync] write failed:', e);
+  }
+}
+
+let _syncTimer = null;
+function syncToFileDebounced() {
+  if (!fileSyncState.handle) return;
+  clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(() => syncToFile(false), 800);
+}
+
+function updateFileSyncStatus() {
+  const el = document.getElementById('file-sync-indicator');
+  if (!el) return;
+  if (fileSyncState.handle) {
+    el.style.display = 'inline-flex';
+    el.classList.add('synced');
+    const t = fileSyncState.lastSync ? fileSyncState.lastSync.toTimeString().slice(0, 5) : '';
+    el.innerHTML = `📁 ${fileSyncState.handle.name} ${t ? '· ' + t : ''} <a onclick="unbindLocalFile()" style="margin-left:4px;">✕</a>`;
+  } else if (_fsSupported()) {
+    el.style.display = 'inline-flex';
+    el.classList.remove('synced');
+    el.innerHTML = `<a onclick="bindLocalFile()">📁 绑定本地文件</a>`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+async function restoreFileSync() {
+  if (!_fsSupported()) return;
+  try {
+    const handle = await _idbLoadHandle();
+    if (handle) {
+      fileSyncState.handle = handle;
+      if (await verifyPermission(handle)) {
+        updateFileSyncStatus();
+      }
+    } else {
+      updateFileSyncStatus();
+    }
+  } catch (e) { console.error(e); }
 }
 
 // =========================================================================
