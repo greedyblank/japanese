@@ -628,6 +628,20 @@ input, textarea, select { font: inherit; }
   border: 1px solid rgba(168,85,247,0.2);
 }
 .grammar-chip .chip-label { color: var(--fg-dim); margin-right: 3px; }
+
+/* AI new entry modal */
+.ai-add-status { font-size: 12px; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; }
+.ai-add-status.info  { background: rgba(56,189,248,0.08); color: var(--accent); }
+.ai-add-status.success { background: rgba(52,211,153,0.08); color: var(--accent2); }
+.ai-add-status.error { background: rgba(244,63,94,0.08); color: #fca5a5; }
+.ai-add-preview { padding: 4px 0; }
+.ai-add-preview .detail-analysis { font-size: 12px; }
+.ai-help-row {
+  font-size: 11px; color: var(--fg-dim);
+  display: flex; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.ai-help-row code { background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 3px; color: var(--accent3); }
 </style>
 </head>
 <body>
@@ -975,6 +989,30 @@ input, textarea, select { font: inherit; }
     <div class="modal-actions">
       <button class="btn" onclick="closePromptModal()">关闭</button>
       <button class="btn btn-primary" onclick="copyPrompt()">📋 复制全部</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== AI New Entry Modal ============================== -->
+<div class="modal-backdrop" id="ai-add-modal">
+  <div class="modal" style="max-width: 640px;">
+    <h3>✨ AI 新词条</h3>
+    <div class="modal-row">
+      <label>输入日语或中文</label>
+      <input id="ai-add-input" type="text" placeholder="例：桜 / 桜を見る / 樱花 / 看见" onkeydown="if(event.key==='Enter')runAINewEntry()">
+    </div>
+    <div class="ai-help-row">
+      <span>支持的输入：</span>
+      <code>桜</code><code>見る</code><code>樱花</code><code>看见</code>
+      <span>· AI 自动判定 layer/root + 补全 30 字段</span>
+    </div>
+    <div id="ai-add-status" class="ai-add-status info">输入日语或中文词，点"分析"</div>
+    <div id="ai-add-preview" class="hidden"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAIAddModal()">取消</button>
+      <button class="btn" onclick="sendAIEntryToEditor()" id="ai-add-edit-btn">✎ 送去编辑</button>
+      <button class="btn btn-primary" onclick="runAINewEntry()" id="ai-add-run-btn">🔍 分析</button>
+      <button class="btn btn-ai" onclick="applyAIEntry()" id="ai-add-apply-btn">✓ 应用</button>
     </div>
   </div>
 </div>
@@ -2127,6 +2165,274 @@ function extractJSON(text) {
   const end = t.lastIndexOf('}');
   if (start < 0 || end < 0) throw new Error('响应中未找到 JSON');
   return JSON.parse(t.slice(start, end + 1));
+}
+
+// =========================================================================
+// AI NEW ENTRY (新词条)
+// =========================================================================
+let _aiAddLastEntry = null;
+
+// 用 KANA_DATA 的 18 层 + 38 音根生成音义矩阵参考（替代韩文造物主矩阵）
+function buildPhoneticReference() {
+  const layers = window.KANA_DATA?.LAYERS || [];
+  const roots = window.KANA_DATA?.ROOTS || {};
+  let out = '';
+  for (const layer of layers) {
+    const layerRoots = Object.entries(roots)
+      .filter(([_, r]) => r.layer === layer.id)
+      .map(([key, r]) => `${r.kana}=${r.core}（${(r.examples||[]).slice(0,4).join('/')}）`)
+      .join(' ； ');
+    out += `【${layer.id} ${layer.name}】${layer.desc}\n  ${layerRoots || '（无音根）'}\n\n`;
+  }
+  return out.trim();
+}
+
+// 取所有合法 layer id + root key（用于校验 AI 返回）
+function getValidLayers() { return new Set((window.KANA_DATA?.LAYERS || []).map(l => l.id)); }
+function getValidRoots() { return new Set(Object.keys(window.KANA_DATA?.ROOTS || {})); }
+
+function buildAIEntryPrompt(input, existingTags) {
+  const tagHint = existingTags.length > 0
+    ? `\n【现有标签参考（尽量复用，最多挑 1-3 个）】\n${existingTags.slice(0, 80).join('、')}\n`
+    : '';
+
+  // 构造合法 layer/root 选项文本
+  const layers = (window.KANA_DATA?.LAYERS || []).map(l => `${l.id}(${l.name})`).join(' / ');
+  const roots = Object.entries(window.KANA_DATA?.ROOTS || {})
+    .map(([k, r]) => `${k}:${r.kana}`).join('、');
+
+  return `你是日语研究者和优秀教学者，是语音语言学、假名字形、字音字义、词源、词根词缀、汉字、和语、音读训读、历史制度文化方面的专家，并且擅长教学总结、抽象解释、具体举例和结构化展开。
+
+【读者设定】
+读者是日语小白。所有假名/汉字必须注音（方括号 [] 内写实际发音或罗马字），所有汉字词必须给出汉字与音读/训读。
+
+【输出语言约定】
+所有枚举字段（pos/conjugation/keigo 等）的值必须用**简体中文或日文汉字**（如 動詞、名詞、五段、尊敬語、和語、音読み 等），按下方枚举表填写。日语原文（假名、汉字）仅在 kana/kanji/examples/related 等文本字段中出现。
+
+【任务】
+用户输入可能是日语或中文。请深入分析并补全一个日语词典词条。
+- 若输入是中文：翻译为最贴切的日语词作为 kana（优先和语/常用汉字词，避免生僻译法）。
+- 若输入是日语：直接使用。
+- 输出**严格 JSON**，不要 markdown 围栏、不要前后多余文字。
+
+【音义矩阵参考框架（A-R 18 层 · 38 音根）】
+这是古和语语音语义学的层级体系。每个音根都承载固有语义：
+${buildPhoneticReference()}
+
+**layer / root 判定（必填）**：
+- layer 必须从下列 18 层中选一个：${layers}
+- root 必须从下列 38 个音根 key 中选最贴近的一个：${roots}
+  * 判定方法：取 kana 的词首音节，匹配到对应音根（如 見る→mi、花→ha、気→ki）。
+  * 若词首音节无法精确匹配，按"最主语义"选最接近的音根。
+
+【字段说明】
+- kana: 日语词条（假名形式，含送り仮名，如 "見る"、"食べる"）
+- kanji: 汉字写法（如 "見る"；纯假名词则与 kana 相同）
+- roman: 标准式 Hepburn 罗马字（如 見る→"miru"、桜→"sakura"）
+- pron: 实际发音，方括号包围（如 [mirɯ]、[kekkon]）
+- meaning: 中文释义；多义项用「；」分隔，每项不超 15 字
+- layer: 上述 18 层 id 之一（A-R）
+- root: 上述 38 音根 key 之一
+- analysis: **重点**。基于音义矩阵的语音语义分析 20-80 字。说明该词的音根如何流转出词义（如 "mi(生命/感知) + ru(流向此处) → 使生命状态进入感知"）。和语词必须拆解音根；汉字词可简述音读来源；外来语说明源语适配。
+- etymology: **重点**。词源追溯 100-200 字。
+  * 和語：追溯到上代/中古日语或可考形式；不确定写"学界没有定论"。
+  * 漢語：拆解汉字语义 + 中古汉语来源 + 与现代汉语的异同。
+  * 外来語：来源语言（英/葡/兰/…）+ 音变 + 意义变化。
+- related: 4-8 个相关词数组（同根/近义/反义/派生/搭配）。反义词加 "(反)" 前缀。
+- examples: 2-3 个典型例句。每条格式 "日文 — 中文翻译"。
+- culturalNote: 历史/制度/文化背景（佛教/儒学/汉字文化圈/和歌/茶道/近代化等）。无则空 ""。
+- tags: 1-3 个标签（中文，描述语义/语法类别）。
+
+【17 词法字段】（枚举值必须严格匹配）
+- pos: 名詞/代名詞/数詞/動詞/形容詞/形容動詞/副詞/連体詞/接続詞/助詞/助動詞/感動詞/接頭辞/接尾辞
+- conjugation: 仅用言（動詞/形容詞/形容動詞/助動詞）。五段/上一段/下一段/カ行変格/サ行変格
+- transitivity: 仅動詞。自動詞/他動詞/両方
+- keigo: 尊敬語/謙譲語/丁寧語/美化語（无则空 ""）
+- politeness: 普通体/丁寧体
+- wordOrigin: 和語/漢語/外来語/混種語/擬音語/擬態語
+- yomi: 仅漢語。音読み/訓読み/両方
+- derivation: 単純/派生/複合/畳語/接頭/接尾
+- baseForm: 仅当 derivation 非空时填基本形（辞書形）
+- okurigana: 送り仮名（如 "る"、"たい"）
+- register: 話し言葉/書き言葉/フォーマル/カジュアル
+- frequency: 高頻/中頻/低頻
+- dialect: 標準语填 ""，否则 関西/東北/九州/沖縄/博多/京都/名古屋
+- polarity: 肯定/否定/中性
+- pitchAccent: 頭高/中高/尾高/平板 或 LHL 模式（如 "LHH"）
+- mimetic: 布尔。是否为擬音語/擬態語
+
+【字段适用性总原则】只填适用字段，不适用的留空/false。名词通常无 conjugation/transitivity；动词通常无 yomi。
+
+【分析原则】
+1. 必须先用音义矩阵判断 root + layer。
+2. 词源不确定时必须明确写"学界没有定论"，禁止编造。
+3. 输出 JSON 严格符合下方结构。
+4. 所有假名/汉字必须给读者注音和释义。
+
+【输入】
+${input}
+${tagHint}
+【输出 JSON 模板】
+{
+  "kana": "", "kanji": "", "roman": "", "pron": "", "meaning": "",
+  "layer": "", "root": "", "analysis": "", "etymology": "",
+  "related": [], "examples": [], "culturalNote": "", "tags": [],
+  "pos": "", "conjugation": "", "transitivity": "", "keigo": "",
+  "politeness": "", "wordOrigin": "", "yomi": "", "derivation": "",
+  "baseForm": "", "okurigana": "", "register": "", "frequency": "",
+  "dialect": "", "polarity": "", "pitchAccent": "", "mimetic": false
+}`;
+}
+
+function _setStatus(msg, type) {
+  const el = document.getElementById('ai-add-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'ai-add-status ' + (type || '');
+}
+
+async function runAINewEntry() {
+  const input = document.getElementById('ai-add-input').value.trim();
+  if (!input) { _setStatus('请先输入日语或中文', 'error'); return; }
+  const primaryLLM = getLLMSlot('primary');
+  if (!primaryLLM.apiKey) {
+    _setStatus('请先在 ⚙ 设置里填写主 LLM 的 API Key', 'error');
+    setTimeout(openSettingsModal, 400);
+    return;
+  }
+
+  const btn = document.getElementById('ai-add-run-btn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ AI 分析中...';
+  _setStatus('正在请求 ' + (primaryLLM.model || 'LLM') + '…', 'info');
+  document.getElementById('ai-add-preview').classList.add('hidden');
+
+  try {
+    const existingTags = getAllTags();
+    const prompt = buildAIEntryPrompt(input, existingTags);
+    const resp = await callLLM(primaryLLM, prompt, 4096);
+    const parsed = extractJSON(resp);
+    if (!parsed.kana || !parsed.meaning) throw new Error('AI 返回缺少 kana 或 meaning 字段');
+
+    const kana = String(parsed.kana).trim();
+    // layer / root 校验 + 兜底
+    const validLayers = getValidLayers();
+    const validRoots = getValidRoots();
+    let layer = String(parsed.layer || '').trim();
+    let root = String(parsed.root || '').trim();
+    if (!validLayers.has(layer)) layer = '';
+    if (!validRoots.has(root)) root = '';
+
+    // 词法字段校验（用 GRAMMAR_ENUMS 白名单）
+    const grammar = {};
+    for (const [key, list] of Object.entries(GRAMMAR_ENUMS)) {
+      grammar[key] = pickEnum(String(parsed[key] || ''), list);
+    }
+    grammar.baseForm = grammar.derivation ? String(parsed.baseForm || '').trim() : '';
+    grammar.okurigana = String(parsed.okurigana || '').trim();
+    grammar.pitchAccent = String(parsed.pitchAccent || '').trim();
+    grammar.mimetic = !!parsed.mimetic;
+
+    const entry = {
+      kana,
+      kanji: String(parsed.kanji || kana).trim(),
+      roman: String(parsed.roman || '').trim() || romanizeKana(kana),
+      pron: String(parsed.pron || '').trim(),
+      meaning: String(parsed.meaning).trim(),
+      layer,
+      root,
+      analysis: String(parsed.analysis || '').trim(),
+      etymology: String(parsed.etymology || '').trim(),
+      related: Array.isArray(parsed.related) ? parsed.related.map(t => String(t).trim()).filter(Boolean).slice(0, 12) : [],
+      examples: Array.isArray(parsed.examples) ? parsed.examples.map(t => String(t).trim()).filter(Boolean).slice(0, 5) : [],
+      culturalNote: String(parsed.culturalNote || '').trim(),
+      tags: Array.isArray(parsed.tags) ? parsed.tags.map(t => String(t).trim()).filter(Boolean).slice(0, 5) : [],
+      ...grammar,
+    };
+    _aiAddLastEntry = entry;
+    _setStatus('✓ AI 分析完成，请确认后应用' + (!layer || !root ? '（layer/root 未命中，应用后请手动补' : ''), 'success');
+    renderAIEntryPreview(entry);
+  } catch (e) {
+    _setStatus('AI 分析失败：' + e.message, 'error');
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+function renderAIEntryPreview(entry) {
+  const dup = state.entries.find(e => e.kana === entry.kana);
+  const dupWarning = dup
+    ? `<div class="info-box amber" style="margin-bottom:8px;">⚠ 词典中已存在「${escapeHtml(entry.kana)}」${dup.meaning ? '（' + escapeHtml(dup.meaning.split(/[;；]/)[0]) + '）' : ''}。仍可继续创建（会重复）。</div>`
+    : '';
+
+  const grammarChips = [];
+  for (const [k, label] of Object.entries({pos:'品詞',conjugation:'活用',transitivity:'自他',keigo:'敬語',politeness:'丁寧度',wordOrigin:'語種',yomi:'音訓',derivation:'派生',register:'語体',frequency:'頻度',dialect:'方言',polarity:'極性',pitchAccent:'アクセント'})) {
+    if (entry[k]) grammarChips.push(`<span class="grammar-chip"><span class="chip-label">${label}</span>${escapeHtml(entry[k])}</span>`);
+  }
+  if (entry.baseForm) grammarChips.push(`<span class="grammar-chip"><span class="chip-label">基本形</span>${escapeHtml(entry.baseForm)}</span>`);
+  if (entry.mimetic) grammarChips.push(`<span class="grammar-chip">擬音擬態</span>`);
+
+  const layerInfo = entry.layer ? (getLayer(entry.layer)?.name || '') : '<span style="color:#fca5a5;">未命中</span>';
+  const rootInfo = entry.root ? (getRoot(entry.root)?.kana || entry.root) : '<span style="color:#fca5a5;">未命中</span>';
+
+  const html = `
+    <div class="ai-add-preview">
+      ${dupWarning}
+      <div style="font-family:'Hiragino Mincho ProN','Yu Mincho',serif;font-size:24px;color:var(--accent);margin-bottom:4px;">
+        ${escapeHtml(entry.kana)} ${entry.kanji && entry.kanji !== entry.kana ? `<span style="font-size:14px;color:var(--fg-muted);">（${escapeHtml(entry.kanji)}）</span>` : ''}
+        ${entry.roman ? `<span style="font-size:12px;color:var(--fg-dim);font-family:monospace;">/${escapeHtml(entry.roman)}/</span>` : ''}
+      </div>
+      <div style="font-size:13px;color:var(--accent2);margin-bottom:8px;">${escapeHtml(entry.meaning)}</div>
+      <div class="grammar-chips" style="margin-bottom:8px;">${grammarChips.join('')}</div>
+      <div style="font-size:10px;color:var(--fg-dim);margin-bottom:8px;">所属：${escapeHtml(entry.layer || '?')} ${escapeHtml(layerInfo)} · 音根 ${rootInfo}</div>
+      ${entry.analysis ? `<div class="detail-analysis" style="margin-bottom:8px;">${escapeHtml(entry.analysis)}</div>` : ''}
+      ${entry.etymology ? `<div style="font-size:12px;color:var(--fg);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--accent3);">词源：</strong>${escapeHtml(entry.etymology)}</div>` : ''}
+      ${entry.related.length ? `<div style="font-size:12px;color:var(--accent5);margin-bottom:6px;">相关：${entry.related.map(r => r.startsWith('(反)') ? `<span style="color:#fca5a5;">${escapeHtml(r)}</span>` : escapeHtml(r)).join(' · ')}</div>` : ''}
+      ${entry.examples.length ? `<div style="font-size:12px;color:var(--fg-muted);line-height:1.7;">${entry.examples.map(e => '▸ ' + escapeHtml(e)).join('<br>')}</div>` : ''}
+    </div>
+  `;
+  const preview = document.getElementById('ai-add-preview');
+  preview.innerHTML = html;
+  preview.classList.remove('hidden');
+}
+
+function applyAIEntry() {
+  if (!_aiAddLastEntry) { toast('没有可应用的 AI 结果', 'error'); return; }
+  const entry = { ..._aiAddLastEntry, id: 'ai-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6) };
+  state.entries.push(entry);
+  state.selectedEntryId = entry.id;
+  saveToStorage();
+  closeAIAddModal();
+  renderLayerGrid();
+  renderRootsList();
+  renderWordsList();
+  renderDetail();
+  renderTagCloud();
+  updateStats();
+  toast(`✓ 已添加「${entry.kana}」`, 'success');
+}
+
+function sendAIEntryToEditor() {
+  if (!_aiAddLastEntry) { toast('没有 AI 结果', 'error'); return; }
+  closeAIAddModal();
+  openAddModal(_aiAddLastEntry);
+  // openAddModal 看到 entry.id 为 undefined 时走"新建"分支但预填字段
+  document.getElementById('edit-id').value = '';
+  document.getElementById('add-modal-title').textContent = '添加词条（来自 AI）';
+}
+
+function openAIAddModal() {
+  const primaryLLM = getLLMSlot('primary');
+  document.getElementById('ai-add-modal').classList.add('active');
+  document.getElementById('ai-add-preview').classList.add('hidden');
+  document.getElementById('ai-add-preview').innerHTML = '';
+  _setStatus(primaryLLM.apiKey ? '输入日语或中文词，点"分析"' : '⚠ 未配置主 LLM API Key，请先到 ⚙ 设置', primaryLLM.apiKey ? 'info' : 'error');
+}
+function closeAIAddModal() {
+  document.getElementById('ai-add-modal').classList.remove('active');
 }
 
 // =========================================================================
