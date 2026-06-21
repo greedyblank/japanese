@@ -1402,6 +1402,16 @@ function getLayer(id) {
   return (window.KANA_DATA?.LAYERS || []).find(l => l.id === id);
 }
 
+// 检测是否含汉字（含汉字的词无法纯靠罗马字表自动转换，需 AI/手动填 roman）
+function _hasKanji(s) {
+  return /[㐀-鿿豈-﫿]/.test(s || '');
+}
+// 仅当纯假名时才用 romanizeKana 自动生成；含汉字返回空串
+function autoRoman(s) {
+  if (!s || _hasKanji(s)) return '';
+  return romanizeKana(s);
+}
+
 // 标准式 Hepburn 罗马字转换（平假名/片假名 → romaji）
 const _ROMAJI_TABLE = (() => {
   const base = {
@@ -2672,7 +2682,7 @@ function saveEntry() {
   const kanji = document.getElementById('add-kanji').value.trim();
 
   // 深度内容
-  const roman = document.getElementById('add-roman').value.trim() || romanizeKana(kana);
+  const roman = document.getElementById('add-roman').value.trim() || autoRoman(kana);
   const pron = document.getElementById('add-pron').value.trim();
   const etymology = document.getElementById('add-etymology').value.trim();
   const related = document.getElementById('add-related').value.trim().split(/\s+/).filter(Boolean).slice(0, 10);
@@ -3493,7 +3503,7 @@ async function runAINewEntry() {
     const entry = {
       kana,
       kanji: String(parsed.kanji || kana).trim(),
-      roman: String(parsed.roman || '').trim() || romanizeKana(kana),
+      roman: String(parsed.roman || '').trim() || autoRoman(kana),
       pron: String(parsed.pron || '').trim(),
       meaning: String(parsed.meaning).trim(),
       layer,
