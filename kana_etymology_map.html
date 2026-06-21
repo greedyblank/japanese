@@ -467,6 +467,91 @@ input, textarea, select { font: inherit; }
   margin-left: 6px;
 }
 .tts-btn:hover { background: rgba(52,211,153,0.25); transform: scale(1.1); }
+
+/* ============================== AI Buttons & Settings ============================== */
+.btn-ai {
+  background: linear-gradient(135deg, rgba(56,189,248,0.18), rgba(168,85,247,0.14));
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-ai:hover { box-shadow: 0 0 12px rgba(56,189,248,0.3); }
+.btn-ai.disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-gear { font-size: 14px; padding: 6px 10px; }
+
+/* LLM Settings Modal — tabs */
+.llm-tabs {
+  display: flex; gap: 4px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px; padding: 4px;
+  margin-bottom: 10px;
+}
+.llm-tab-btn {
+  flex: 1; padding: 6px 10px;
+  font-size: 12px; font-weight: 600;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+  transition: all 0.15s;
+}
+.llm-tab-btn:hover { background: rgba(255,255,255,0.06); color: var(--fg); }
+.llm-tab-btn.active {
+  background: var(--accent);
+  color: var(--bg);
+}
+.llm-tab-btn span { font-size: 9px; opacity: 0.7; font-weight: 400; }
+.llm-tab-hint { font-size: 11px; color: var(--fg-muted); margin-bottom: 12px; }
+
+/* Settings info boxes */
+.info-box {
+  border-radius: 8px; padding: 10px 12px;
+  font-size: 12px; line-height: 1.6;
+  margin-bottom: 10px;
+}
+.info-box.green { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.25); }
+.info-box.blue  { background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); }
+.info-box.amber { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25); color: #fcd34d; }
+.info-box strong.green-t { color: var(--accent2); }
+.info-box strong.blue-t  { color: var(--accent); }
+.info-box code { background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 4px; color: var(--accent3); font-family: monospace; }
+.info-box a { color: var(--accent); text-decoration: none; }
+.info-box a:hover { text-decoration: underline; }
+.info-box .info-toggle { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+.info-box input[type=checkbox] { margin-top: 2px; accent-color: var(--accent); }
+
+.reuse-row { display: none; }
+.reuse-row.show { display: block; }
+
+.api-key-row { position: relative; }
+.api-key-row input { padding-right: 50px; }
+.api-key-vis-btn {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  font-size: 11px; color: var(--fg-muted);
+  padding: 3px 8px; border-radius: 4px;
+  background: rgba(255,255,255,0.04);
+}
+.api-key-vis-btn:hover { color: var(--fg); background: rgba(255,255,255,0.1); }
+
+.settings-modal { max-width: 560px; }
+.settings-actions {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 16px; gap: 8px; flex-wrap: wrap;
+}
+.settings-actions .right-group { display: flex; gap: 8px; }
+.field-hint { font-size: 10px; color: var(--fg-dim); margin-top: 3px; }
+.field-hint code { background: rgba(0,0,0,0.3); padding: 1px 4px; border-radius: 3px; color: var(--accent3); }
+
+.hidden { display: none !important; }
+
+.file-sync-indicator {
+  font-size: 11px; color: var(--fg-muted);
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 6px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+}
+.file-sync-indicator.synced { color: var(--accent2); border-color: rgba(52,211,153,0.3); }
+.file-sync-indicator a { color: var(--accent); text-decoration: none; }
+.file-sync-indicator a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -481,9 +566,13 @@ input, textarea, select { font: inherit; }
     <span>层 <b id="stat-layers">0</b></span>
     <span>音根 <b id="stat-roots">0</b></span>
     <span>词条 <b id="stat-entries">0</b></span>
+    <span class="file-sync-indicator" id="file-sync-indicator" style="display:none;"></span>
   </div>
   <div class="header-actions">
-    <button class="btn" onclick="openPromptModal()">📚 学习 Prompt</button>
+    <button class="btn btn-ai" id="ai-add-btn" onclick="openAIAddModal()">✨ AI 新词条</button>
+    <button class="btn btn-ai disabled" id="ai-btn" onclick="openAIModal()" title="点击配置 API Key 后使用">✨ AI 补全</button>
+    <button class="btn btn-gear" onclick="openSettingsModal()" title="LLM 设置">⚙️</button>
+    <button class="btn" onclick="openPromptModal()">📚 Prompt</button>
     <button class="btn" onclick="openBulkPaste()">📥 批量导入</button>
     <button class="btn btn-primary" onclick="openAddModal()">+ 添加词条</button>
     <button class="btn" onclick="resetData()">↺ 重置</button>
@@ -619,6 +708,95 @@ input, textarea, select { font: inherit; }
   </div>
 </div>
 
+<!-- ============================== LLM Settings Modal ============================== -->
+<div class="modal-backdrop" id="settings-modal">
+  <div class="modal settings-modal">
+    <h3>⚙️ LLM 设置</h3>
+
+    <div class="llm-tabs">
+      <button class="llm-tab-btn" id="tab-btn-primary" onclick="switchLLMTab('primary')">
+        🧠 主 LLM <span>(新词条)</span>
+      </button>
+      <button class="llm-tab-btn" id="tab-btn-completion" onclick="switchLLMTab('completion')">
+        ✨ 补全 LLM <span>(批量填充)</span>
+      </button>
+    </div>
+    <p class="llm-tab-hint" id="tab-hint"></p>
+
+    <div class="modal-row">
+      <label>服务商 Provider</label>
+      <select id="set-provider" onchange="onProviderChange()">
+        <option value="glm_anthropic">智谱 GLM (Anthropic 兼容) ⭐ 推荐</option>
+        <option value="glm">智谱 GLM (OpenAI v4 兼容)</option>
+        <option value="anthropic">Claude (Anthropic 官方)</option>
+        <option value="openai">OpenAI GPT</option>
+        <option value="deepseek">DeepSeek</option>
+        <option value="moonshot">Moonshot Kimi</option>
+        <option value="gemini">Google Gemini</option>
+        <option value="custom">自定义</option>
+      </select>
+    </div>
+
+    <div class="modal-row">
+      <label>API 端点 Endpoint</label>
+      <input id="set-endpoint" type="text" placeholder="https://open.bigmodel.cn/api/anthropic/v1/messages">
+      <p class="field-hint">GLM-Anthropic 兼容端点（与 Claude Code 同款配置）</p>
+    </div>
+
+    <div class="modal-row">
+      <label>模型 Model</label>
+      <input id="set-model" type="text" placeholder="GLM-4.5-air">
+      <p class="field-hint">Anthropic 协议：<code>GLM-4.5-air</code>(便宜) · <code>GLM-5.1</code> / v4 协议：<code>glm-4-flash</code></p>
+    </div>
+
+    <div class="modal-row">
+      <label>API Key <a href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank" style="margin-left:8px;font-size:11px;text-transform:none;">→ 此处获取</a></label>
+      <div class="api-key-row">
+        <input id="set-apikey" type="password" placeholder="xxxxxxxx.xxxxxx（GLM API Key）">
+        <button class="api-key-vis-btn" onclick="toggleKeyVisibility()" id="key-vis-btn">显示</button>
+      </div>
+    </div>
+
+    <div class="info-box green">
+      <label class="info-toggle">
+        <input type="checkbox" id="set-use-proxy">
+        <div>
+          <strong class="green-t">🚀 使用本地代理（仅当直连失败时再开）</strong>
+          <div style="color: var(--fg-muted); margin-top: 4px;">
+            <strong>GLM 已支持浏览器 CORS 直连</strong>，默认无需代理。
+            若直连失败（公司网络/浏览器扩展拦截），勾选并运行
+            <code>python3 glm_proxy.py</code>
+            <button onclick="copyProxyCmd()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:10px;margin-left:4px;text-decoration:underline;">复制命令</button>
+          </div>
+        </div>
+      </label>
+    </div>
+
+    <div class="info-box blue reuse-row" id="reuse-primary-row">
+      <label class="info-toggle">
+        <input type="checkbox" id="set-reuse-primary" onchange="onReuseToggle()">
+        <div>
+          <strong class="blue-t">🔗 与主 LLM 共用配置</strong>
+          <div style="color: var(--fg-muted); margin-top: 4px;">勾选后，补全任务直接使用上方「主 LLM」的设置（无需重复填写）。</div>
+        </div>
+      </label>
+    </div>
+
+    <div class="info-box amber">
+      ⚠️ <strong>安全提示</strong>：API Key 仅保存在你浏览器的 localStorage 中，
+      不会上传到任何服务器。仅在你本机使用，请勿在公共电脑上保存。
+    </div>
+
+    <div class="settings-actions">
+      <button class="btn" onclick="testConnection()" id="test-conn-btn">🔗 测试连接</button>
+      <div class="right-group">
+        <button class="btn" onclick="closeSettingsModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveSettings()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ============================== Toast ============================== -->
 <div class="toast" id="toast"></div>
 
@@ -645,6 +823,7 @@ let state = {
 // =========================================================================
 function init() {
   loadFromStorage();
+  loadSettings();
   if (state.entries.length === 0) {
     // 首次启动：从数据文件加载默认词条
     if (window.KANA_DATA) {
@@ -662,6 +841,7 @@ function init() {
   renderDetail();
   updateStats();
   populateLayerSelect();
+  updateAIButton();
 }
 
 // =========================================================================
@@ -1212,6 +1392,269 @@ function speak(text) {
   u.rate = 0.9;
   speechSynthesis.cancel();
   speechSynthesis.speak(u);
+}
+
+// =========================================================================
+// LLM SETTINGS & API INTEGRATION
+// =========================================================================
+const SETTINGS_KEY = 'japanese_llm_settings_v1';
+const PROVIDER_PRESETS = {
+  glm_anthropic: { endpoint: 'https://open.bigmodel.cn/api/anthropic/v1/messages', model: 'GLM-4.5-air', label: '智谱 GLM (Anthropic 兼容) ⭐ 推荐', protocol: 'anthropic' },
+  glm:           { endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', model: 'glm-4-flash', label: '智谱 GLM (OpenAI 兼容 v4)', protocol: 'openai' },
+  anthropic:     { endpoint: 'https://api.anthropic.com/v1/messages', model: 'claude-sonnet-4-6', label: 'Claude (Anthropic 官方)', protocol: 'anthropic' },
+  openai:        { endpoint: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o', label: 'OpenAI GPT', protocol: 'openai' },
+  deepseek:      { endpoint: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat', label: 'DeepSeek', protocol: 'openai' },
+  moonshot:      { endpoint: 'https://api.moonshot.cn/v1/chat/completions', model: 'moonshot-v1-8k', label: 'Moonshot Kimi', protocol: 'openai' },
+  gemini:        { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-2.5-flash', label: 'Google Gemini', protocol: 'openai' },
+  custom:        { endpoint: '', model: '', label: '自定义', protocol: 'openai' },
+};
+
+function _defaultLLMSlot() {
+  return {
+    provider: 'glm_anthropic',
+    endpoint: PROVIDER_PRESETS.glm_anthropic.endpoint,
+    model: PROVIDER_PRESETS.glm_anthropic.model,
+    apiKey: '', useProxy: false,
+  };
+}
+let llmSettings = {
+  primary: _defaultLLMSlot(),
+  completion: { ..._defaultLLMSlot(), reusePrimary: true },
+};
+let activeLLMTab = 'primary';
+let aiState = { running: false, cancelRequested: false };
+
+function getLLMSlot(slotName) {
+  const slot = llmSettings[slotName];
+  if (!slot) return llmSettings.primary;
+  if (slotName === 'completion' && slot.reusePrimary) return llmSettings.primary;
+  return slot;
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (saved && !saved.primary && saved.provider) {
+        if (!PROVIDER_PRESETS[saved.provider]) { delete saved.provider; delete saved.endpoint; delete saved.model; }
+        llmSettings.primary = { ..._defaultLLMSlot(), ...saved };
+        llmSettings.completion = { ..._defaultLLMSlot(), reusePrimary: true };
+      } else if (saved && saved.primary) {
+        for (const k of ['primary', 'completion']) {
+          if (saved[k] && saved[k].provider && !PROVIDER_PRESETS[saved[k].provider]) { delete saved[k].provider; delete saved[k].endpoint; delete saved[k].model; }
+          llmSettings[k] = { ...llmSettings[k], ...(saved[k] || {}) };
+        }
+      }
+    }
+  } catch(e) { console.error(e); }
+}
+function saveSettingsToStorage() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(llmSettings)); }
+
+function _paintLLMTabs() {
+  const pBtn = document.getElementById('tab-btn-primary');
+  const cBtn = document.getElementById('tab-btn-completion');
+  const reuseRow = document.getElementById('reuse-primary-row');
+  const hint = document.getElementById('tab-hint');
+  if (activeLLMTab === 'primary') {
+    pBtn.classList.add('active'); cBtn.classList.remove('active');
+    if (reuseRow) reuseRow.classList.remove('show');
+    if (hint) hint.textContent = '主 LLM 用于「AI 新词条」（要求强模型：GLM-4.5/Claude/GPT-4 级别）';
+  } else {
+    cBtn.classList.add('active'); pBtn.classList.remove('active');
+    if (reuseRow) reuseRow.classList.add('show');
+    if (hint) hint.textContent = '补全 LLM 用于批量字段填充（可用便宜快速模型：glm-4-flash/GPT-4o-mini）';
+  }
+  _syncReuseUi();
+}
+
+function _syncReuseUi() {
+  if (activeLLMTab !== 'completion') return;
+  const reuseInp = document.getElementById('set-reuse-primary');
+  if (!reuseInp) return;
+  const reuseChecked = reuseInp.checked;
+  if (reuseChecked) {
+    const p = llmSettings.primary;
+    document.getElementById('set-provider').value = p.provider;
+    document.getElementById('set-endpoint').value = p.endpoint;
+    document.getElementById('set-model').value = p.model;
+    document.getElementById('set-apikey').value = p.apiKey;
+    document.getElementById('set-use-proxy').checked = !!p.useProxy;
+  }
+  ['set-provider','set-endpoint','set-model','set-apikey','set-use-proxy'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = reuseChecked;
+  });
+  const keyBtn = document.getElementById('key-vis-btn');
+  if (keyBtn) keyBtn.disabled = reuseChecked;
+}
+
+function onReuseToggle() { _syncReuseUi(); }
+
+function switchLLMTab(tab) {
+  _syncFormToSlot(activeLLMTab);
+  activeLLMTab = tab;
+  _loadSlotToForm(activeLLMTab);
+  _paintLLMTabs();
+}
+
+function _loadSlotToForm(slotName) {
+  const s = llmSettings[slotName];
+  document.getElementById('set-provider').value = s.provider;
+  document.getElementById('set-endpoint').value = s.endpoint;
+  document.getElementById('set-model').value = s.model;
+  document.getElementById('set-apikey').value = s.apiKey;
+  document.getElementById('set-use-proxy').checked = !!s.useProxy;
+  const reuseInp = document.getElementById('set-reuse-primary');
+  if (reuseInp) reuseInp.checked = !!s.reusePrimary;
+}
+
+function _syncFormToSlot(slotName) {
+  const s = llmSettings[slotName];
+  s.provider = document.getElementById('set-provider').value;
+  s.endpoint = document.getElementById('set-endpoint').value.trim();
+  s.model = document.getElementById('set-model').value.trim();
+  s.apiKey = document.getElementById('set-apikey').value.trim();
+  s.useProxy = document.getElementById('set-use-proxy').checked;
+  const reuseInp = document.getElementById('set-reuse-primary');
+  if (reuseInp) s.reusePrimary = reuseInp.checked;
+}
+
+function openSettingsModal() {
+  _loadSlotToForm(activeLLMTab);
+  _paintLLMTabs();
+  document.getElementById('settings-modal').classList.add('active');
+}
+function closeSettingsModal() { document.getElementById('settings-modal').classList.remove('active'); }
+
+function onProviderChange() {
+  const p = document.getElementById('set-provider').value;
+  const preset = PROVIDER_PRESETS[p];
+  if (preset) {
+    document.getElementById('set-endpoint').value = preset.endpoint;
+    document.getElementById('set-model').value = preset.model;
+  }
+}
+
+function toggleKeyVisibility() {
+  const inp = document.getElementById('set-apikey');
+  const btn = document.getElementById('key-vis-btn');
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '隐藏'; }
+  else { inp.type = 'password'; btn.textContent = '显示'; }
+}
+
+function saveSettings() {
+  _syncFormToSlot(activeLLMTab);
+  saveSettingsToStorage();
+  closeSettingsModal();
+  toast('LLM 设置已保存', 'success');
+  updateAIButton();
+}
+
+function copyProxyCmd() {
+  navigator.clipboard.writeText('python3 glm_proxy.py').then(() => toast('已复制：python3 glm_proxy.py', 'success'))
+    .catch(() => toast('请手动复制：python3 glm_proxy.py', 'info'));
+}
+
+function updateAIButton() {
+  const btn = document.getElementById('ai-btn');
+  const eff = getLLMSlot('completion');
+  if (!eff.apiKey) { btn.classList.add('disabled'); btn.title = '点击配置 API Key 后使用'; }
+  else { btn.classList.remove('disabled'); btn.title = ''; }
+}
+
+async function testConnection() {
+  const slot = llmSettings[activeLLMTab];
+  const reuseInp = document.getElementById('set-reuse-primary');
+  const reuseActive = activeLLMTab === 'completion' && (reuseInp?.checked || slot.reusePrimary);
+  const tempSettings = reuseActive ? { ...llmSettings.primary } : {
+    provider: document.getElementById('set-provider').value,
+    endpoint: document.getElementById('set-endpoint').value.trim(),
+    model: document.getElementById('set-model').value.trim(),
+    apiKey: document.getElementById('set-apikey').value.trim(),
+    useProxy: document.getElementById('set-use-proxy').checked,
+  };
+  if (!tempSettings.apiKey) { toast('请先填写 API Key', 'error'); return; }
+  const btn = document.getElementById('test-conn-btn');
+  btn.textContent = '⏳ 测试中...'; btn.disabled = true;
+  console.log('[LLM Test] tab:', activeLLMTab, '| endpoint:', resolveEndpoint(tempSettings), '| model:', tempSettings.model);
+  try {
+    await callLLM(tempSettings, '请只输出 JSON: {"ok":true}', 50);
+    toast(`✓ 连接成功 · ${tempSettings.model} · ${tempSettings.useProxy ? '代理' : '直连'}`, 'success');
+  } catch(e) {
+    let msg = e.message;
+    if (msg.includes('CORS') || msg.includes('Failed to fetch') || msg.includes('网络请求失败')) msg += '\n→ 试试：① 取消「使用本地代理」勾选  ② 或运行 python3 glm_proxy.py 后勾选';
+    else if (msg.includes('无法连接本地代理')) msg += '\n→ 解决：终端运行 python3 glm_proxy.py 启动代理';
+    else if (msg.includes('401') || msg.includes('403')) msg += '\n→ 解决：检查 API Key 是否正确/未过期';
+    else if (msg.includes('404')) msg += '\n→ 解决：检查模型名 — Anthropic 协议用 GLM-4.5-air，v4 协议用 glm-4-flash';
+    toast('✗ ' + msg, 'error');
+    console.error('[LLM Test] failed:', e);
+  } finally {
+    btn.textContent = '🔗 测试连接'; btn.disabled = false;
+  }
+}
+
+async function callLLM(settings, prompt, maxTokens = 4096) {
+  if (!settings.apiKey) throw new Error('未配置 API Key');
+  const preset = PROVIDER_PRESETS[settings.provider];
+  const protocol = preset?.protocol || (settings.provider === 'anthropic' ? 'anthropic' : 'openai');
+  if (protocol === 'anthropic') return await callAnthropic(settings, prompt, maxTokens);
+  return await callOpenAI(settings, prompt, maxTokens);
+}
+
+function resolveEndpoint(settings) {
+  if (settings.useProxy) {
+    const stripped = settings.endpoint.replace(/^https?:\/\//, '');
+    return 'http://localhost:8787/' + stripped;
+  }
+  return settings.endpoint;
+}
+
+async function safeFetch(url, options) {
+  let res;
+  try { res = await fetch(url, options); }
+  catch (networkErr) {
+    if (url.startsWith('http://localhost')) throw new Error('无法连接本地代理 — 请确认已在终端运行 python3 glm_proxy.py');
+    throw new Error('网络请求失败（多半是 CORS 跨域拦截）— 请在 ⚙ 设置中勾选「使用本地代理」');
+  }
+  return res;
+}
+
+async function callAnthropic(settings, prompt, maxTokens) {
+  const res = await safeFetch(resolveEndpoint(settings), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': settings.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({ model: settings.model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }),
+  });
+  if (!res.ok) { const err = await res.text(); throw new Error(`HTTP ${res.status}: ${err.slice(0, 200)}`); }
+  const data = await res.json();
+  return data.content?.[0]?.text || '';
+}
+
+async function callOpenAI(settings, prompt, maxTokens) {
+  const res = await safeFetch(resolveEndpoint(settings), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.apiKey}` },
+    body: JSON.stringify({ model: settings.model, messages: [{ role: 'user', content: prompt }], max_tokens: maxTokens, temperature: 0.7 }),
+  });
+  if (!res.ok) { const err = await res.text(); throw new Error(`HTTP ${res.status}: ${err.slice(0, 300)}`); }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+// extractJSON — strips markdown fences, slices {...}
+function extractJSON(text) {
+  let t = text.trim();
+  t = t.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+  const start = t.indexOf('{');
+  const end = t.lastIndexOf('}');
+  if (start < 0 || end < 0) throw new Error('响应中未找到 JSON');
+  return JSON.parse(t.slice(start, end + 1));
 }
 
 // =========================================================================
