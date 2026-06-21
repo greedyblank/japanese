@@ -642,6 +642,36 @@ input, textarea, select { font: inherit; }
   margin-bottom: 8px;
 }
 .ai-help-row code { background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 3px; color: var(--accent3); }
+
+/* AI completion modal */
+.comp-toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+.comp-toolbar .small-btn { font-size: 11px; padding: 3px 8px; }
+.comp-group { margin-bottom: 8px; }
+.comp-group-title { font-size: 10px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.comp-group-fields { display: flex; flex-wrap: wrap; gap: 4px; }
+.comp-field {
+  font-size: 11px; padding: 3px 8px; border-radius: 6px;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+  cursor: pointer; display: flex; align-items: center; gap: 4px;
+  color: var(--fg-muted); transition: all 0.12s;
+}
+.comp-field:hover { border-color: var(--accent); color: var(--fg); }
+.comp-field.on { background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.4); color: var(--accent); }
+.comp-field input { accent-color: var(--accent); margin: 0; }
+.comp-only-empty-row {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--fg-muted); margin-top: 8px;
+}
+.comp-only-empty-row input { accent-color: var(--accent); }
+.ai-progress-wrap { margin: 10px 0; }
+.ai-progress-track { height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
+.ai-progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 0%; transition: width 0.3s; }
+.ai-progress-text { font-size: 11px; color: var(--fg-muted); margin-top: 4px; text-align: center; }
+.ai-log-box {
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px; max-height: 200px; overflow-y: auto;
+  margin-top: 10px;
+}
 </style>
 </head>
 <body>
@@ -1017,6 +1047,50 @@ input, textarea, select { font: inherit; }
   </div>
 </div>
 
+<!-- ============================== AI Completion Modal ============================== -->
+<div class="modal-backdrop" id="ai-modal">
+  <div class="modal" style="max-width: 680px;">
+    <div class="flex" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="margin:0;">✨ AI 自动补全</h3>
+      <button class="btn btn-gear" onclick="closeAIModal()">✕</button>
+    </div>
+
+    <!-- 扫描 + 字段选择面板 -->
+    <div id="ai-scan-panel">
+      <div id="ai-scan-result" class="ai-add-status info"></div>
+
+      <div class="comp-toolbar">
+        <span style="font-size:11px;color:var(--fg-muted);">选择补全字段：</span>
+        <button class="btn small-btn" onclick="setAllCompletionFields(true)">全选</button>
+        <button class="btn small-btn" onclick="setAllCompletionFields(false)">全清</button>
+      </div>
+      <div id="comp-field-grid"></div>
+      <label class="comp-only-empty-row">
+        <input type="checkbox" id="comp-only-empty" onchange="toggleCompletionOnlyIfEmpty(this.checked)">
+        仅填充空字段（已有值的不覆盖）
+      </label>
+
+      <div class="modal-actions" style="margin-top: 14px;">
+        <button class="btn" onclick="closeAIModal()">取消</button>
+        <button class="btn btn-ai" onclick="runAICompletion()">🚀 开始补全</button>
+      </div>
+    </div>
+
+    <!-- 进度面板 -->
+    <div id="ai-progress-panel" class="hidden">
+      <div class="ai-progress-wrap">
+        <div class="ai-progress-track"><div class="ai-progress-bar" id="ai-progress-bar"></div></div>
+        <div class="ai-progress-text" id="ai-progress-text">0 / 0</div>
+      </div>
+      <div class="ai-log-box" id="ai-log"></div>
+      <div class="modal-actions" style="margin-top: 12px;">
+        <button class="btn" id="ai-cancel-btn" onclick="cancelAICompletion()">⏹ 停止</button>
+        <button class="btn btn-primary hidden" id="ai-close-btn" onclick="closeAIModal()">完成</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ============================== LLM Settings Modal ============================== -->
 <div class="modal-backdrop" id="settings-modal">
   <div class="modal settings-modal">
@@ -1133,6 +1207,7 @@ let state = {
 function init() {
   loadFromStorage();
   loadSettings();
+  loadCompletionConfig();
   if (state.entries.length === 0) {
     // 首次启动：从数据文件加载默认词条
     if (window.KANA_DATA) {
@@ -2433,6 +2508,364 @@ function openAIAddModal() {
 }
 function closeAIAddModal() {
   document.getElementById('ai-add-modal').classList.remove('active');
+}
+
+// =========================================================================
+// AI COMPLETION (自动补全)
+// =========================================================================
+
+// 27 个可补全字段（3 组），含元数据
+const COMPLETION_FIELD_META = {
+  // 内容字段
+  pron:        { label: '实际发音',   group: '内容', type: 'string' },
+  roman:       { label: '罗马字',     group: '内容', type: 'string' },
+  analysis:    { label: '音义分析',   group: '内容', type: 'longtext' },
+  etymology:   { label: '词源',       group: '内容', type: 'longtext' },
+  related:     { label: '相关词',     group: '内容', type: 'array' },
+  examples:    { label: '例句',       group: '内容', type: 'array' },
+  culturalNote:{ label: '文化背景',   group: '内容', type: 'longtext' },
+  tags:        { label: '标签',       group: '内容', type: 'array' },
+  // 分类
+  kanji:       { label: '汉字写法',   group: '分类', type: 'string' },
+  // 词法特征
+  pos:         { label: '品詞',       group: '词法', type: 'enum' },
+  conjugation: { label: '活用',       group: '词法', type: 'enum' },
+  transitivity:{ label: '自他',       group: '词法', type: 'enum' },
+  keigo:       { label: '敬語',       group: '词法', type: 'enum' },
+  politeness:  { label: '丁寧度',     group: '词法', type: 'enum' },
+  wordOrigin:  { label: '語種',       group: '词法', type: 'enum' },
+  yomi:        { label: '音訓',       group: '词法', type: 'enum' },
+  derivation:  { label: '派生',       group: '词法', type: 'enum' },
+  baseForm:    { label: '基本形',     group: '词法', type: 'string' },
+  okurigana:   { label: '送り仮名',   group: '词法', type: 'string' },
+  register:    { label: '語体',       group: '词法', type: 'enum' },
+  frequency:   { label: '頻度',       group: '词法', type: 'enum' },
+  dialect:     { label: '方言',       group: '词法', type: 'enum' },
+  polarity:    { label: '極性',       group: '词法', type: 'enum' },
+  pitchAccent: { label: 'アクセント', group: '词法', type: 'string' },
+  mimetic:     { label: '擬音擬態',   group: '词法', type: 'bool' },
+};
+
+const COMPLETION_CONFIG_KEY = 'japanese_completion_config_v1';
+let completionConfig = {
+  fields: ['pron','roman','analysis','tags','pos','conjugation','wordOrigin','frequency'],
+  onlyIfEmpty: true,
+};
+function loadCompletionConfig() {
+  try {
+    const raw = localStorage.getItem(COMPLETION_CONFIG_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (Array.isArray(saved.fields)) completionConfig.fields = saved.fields.filter(f => COMPLETION_FIELD_META[f]);
+      if (typeof saved.onlyIfEmpty === 'boolean') completionConfig.onlyIfEmpty = saved.onlyIfEmpty;
+    }
+  } catch(e) { console.error(e); }
+}
+function saveCompletionConfig() {
+  localStorage.setItem(COMPLETION_CONFIG_KEY, JSON.stringify(completionConfig));
+}
+
+// 字段为空判定（bool false 也算空）
+function isFieldEmpty(entry, field) {
+  const v = entry[field];
+  if (v == null) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === 'boolean') return v === false;
+  return String(v).trim() === '';
+}
+
+function findIncompleteEntries() {
+  return state.entries.filter(e =>
+    completionConfig.fields.some(f => isFieldEmpty(e, f))
+  );
+}
+
+// 字段适用性表（日语 POS 驱动）
+const FIELD_APPLICABILITY = {
+  conjugation:  ['動詞','形容詞','形容動詞','助動詞'],   // 仅用言
+  transitivity: ['動詞'],                               // 仅動詞
+  politeness:   ['動詞','形容詞','形容動詞','助動詞'],   // 用言 + 名詞+コピュラ（简化为用言）
+  yomi:         [],                                     // 仅漢語（特殊判定：wordOrigin=漢語）
+  okurigana:    [],                                     // 仅含汉字（特殊判定）
+  baseForm:     [],                                     // 仅 derivation 非空时（特殊判定）
+  mimetic:      [],                                     // 仅擬音語/擬態語（特殊判定）
+};
+
+function _isFieldApplicable(field, entry) {
+  const allowed = FIELD_APPLICABILITY[field];
+  if (allowed === undefined) return true; // 不在表里 = 全适用
+  if (field === 'baseForm') return !!(entry.derivation);
+  if (field === 'yomi') return entry.wordOrigin === '漢語';
+  if (field === 'okurigana') return !!(entry.kanji);
+  if (field === 'mimetic') return entry.wordOrigin === '擬音語' || entry.wordOrigin === '擬態語';
+  if (allowed.length === 0) return true;
+  const pos = entry.pos;
+  if (!pos) return true; // 词性未知 = 不阻挡，交给 prompt
+  return allowed.includes(pos);
+}
+
+function buildCompletionPrompt(batch) {
+  const fields = completionConfig.fields;
+  const wordList = batch.map((e, i) => {
+    const senses = (e.meaning || '').split(/[;；]/).map(s => s.trim()).filter(Boolean).join(' / ');
+    const existing = [];
+    if (e.layer) existing.push(`层:${e.layer}`);
+    if (e.kanji) existing.push(`汉:${e.kanji}`);
+    if (e.pos) existing.push(`品詞:${e.pos}`);
+    if (e.wordOrigin) existing.push(`語種:${e.wordOrigin}`);
+    return `${i + 1}. ${e.kana} | 释义: ${senses || '待你根据词形推断'}${existing.length > 0 ? ' | 已知: ' + existing.join(' ') : ''}`;
+  }).join('\n');
+
+  const fieldDesc = {
+    pron: '实际发音（应用音变规则，方括号包围如 [mirɯ]）',
+    roman: '标准式 Hepburn 罗马字（見る=miru、桜=sakura）',
+    analysis: '基于音义矩阵的语音语义分析 20-80 字（拆解音根如何流转出词义）',
+    etymology: '词源追溯（和語/漢語/外来語来源 + 词根词缀演变）',
+    related: '相关词数组（同根/近义/反义，反义加 (反) 前缀）',
+    examples: '例句数组，每条 "日文 — 中文"',
+    culturalNote: '历史文化制度背景',
+    tags: '标签数组（1-4 个中文）',
+    kanji: '汉字写法（若适用）',
+    pos: '品詞（名詞/動詞/形容詞/形容動詞/副詞 等 14 类）',
+    conjugation: '活用（仅用言：五段/上一段/下一段/カ行変格/サ行変格）',
+    transitivity: '自他（仅動詞：自動詞/他動詞/両方）',
+    keigo: '敬語（尊敬語/謙譲語/丁寧語/美化語）',
+    politeness: '丁寧度（普通体/丁寧体）',
+    wordOrigin: '語種（和語/漢語/外来語/混種語/擬音語/擬態語）',
+    yomi: '音訓（仅漢語：音読み/訓読み/両方）',
+    derivation: '派生（単純/派生/複合/畳語/接頭/接尾）',
+    baseForm: '基本形（派生所源，如 食べさせる → 食べる）',
+    okurigana: '送り仮名（如 る、たい）',
+    register: '語体（話し言葉/書き言葉/フォーマル/カジュアル）',
+    frequency: '頻度（高頻/中頻/低頻）',
+    dialect: '方言（標準语空 / 関西/東北/九州/沖縄/博多/京都/名古屋）',
+    polarity: '極性（肯定/否定/中性）',
+    pitchAccent: 'アクセント（頭高/中高/尾高/平板 或 LHL 模式）',
+    mimetic: '布尔：是否为擬音語/擬態語',
+  };
+  const fieldList = fields.map(f => `- ${f}: ${fieldDesc[f] || ''}`).join('\n');
+
+  const sampleObj = { kana: batch[0]?.kana || '見る' };
+  for (const f of fields) {
+    if (f === 'tags' || f === 'related' || f === 'examples') sampleObj[f] = [];
+    else if (f === 'mimetic') sampleObj[f] = false;
+    else sampleObj[f] = '';
+  }
+
+  return `你是日语词汇学和音韵学专家。请基于以下音义矩阵参考体系，为每个日语词补全用户指定的字段。
+
+${buildPhoneticReference()}
+
+【任务】
+请为下列词条**只生成下方列表中的字段**（不在列表中的字段不要生成）：
+${fieldList}
+
+【适用性原则】
+- 不适用的字段留空字符串/空数组/ false（例如名詞没有 conjugation/transitivity，動詞没有 yomi）
+- conjugation/politeness 仅对用言（動詞/形容詞/形容動詞/助動詞）有效
+- transitivity 仅对動詞有效
+- yomi 仅对漢語有效
+- okurigana 仅在含汉字时填
+- baseForm 仅在 derivation 非空时填
+- mimetic 仅对擬音語/擬態語有效
+- 词源不确定时明写「学界没有定论」，禁止编造
+- 所有枚举值必须用**简体中文或日文汉字**（如 動詞、五段、尊敬語、和語、音読み 等）
+
+【词条】
+${wordList}
+
+【输出要求】
+仅输出严格 JSON，无任何额外文字、无 markdown 代码块。格式：
+{"results":[${JSON.stringify(sampleObj)}, ...]}
+
+每个 kana 必须与输入完全对应。`;
+}
+
+function applyCompletions(batch, results) {
+  const cfg = completionConfig;
+  let updated = 0;
+  for (const r of (results.results || [])) {
+    const target = batch.find(e => e.kana === r.kana);
+    if (!target) continue;
+    let changed = false;
+    for (const field of cfg.fields) {
+      const newVal = r[field];
+      if (newVal == null) continue;
+      const isArrEmpty = Array.isArray(newVal) && newVal.length === 0;
+      const isStrEmpty = typeof newVal === 'string' && newVal.trim() === '';
+      if (isArrEmpty || isStrEmpty) continue;
+      if (cfg.onlyIfEmpty && !isFieldEmpty(target, field)) continue;
+      // POS 适用性硬过滤
+      if (!_isFieldApplicable(field, target)) {
+        console.log(`[Completion] 跳过 ${target.kana} 的 ${field}（不适用）`);
+        continue;
+      }
+      // 应用
+      if (Array.isArray(newVal)) {
+        target[field] = newVal.slice(0, 12);
+      } else if (typeof newVal === 'boolean') {
+        target[field] = !!newVal;
+      } else if (field === 'mimetic') {
+        target[field] = (newVal === true || newVal === 'true');
+      } else {
+        target[field] = String(newVal).trim();
+      }
+      changed = true;
+    }
+    if (changed) { updated++; }
+  }
+  return updated;
+}
+
+// 字段勾选 UI
+function renderCompletionFieldPicker() {
+  const container = document.getElementById('comp-field-grid');
+  if (!container) return;
+  const groups = ['内容','分类','词法'];
+  let html = '';
+  for (const g of groups) {
+    const fieldsInGroup = Object.entries(COMPLETION_FIELD_META).filter(([_, m]) => m.group === g);
+    html += `<div class="comp-group"><div class="comp-group-title">${g}</div><div class="comp-group-fields">`;
+    for (const [f, m] of fieldsInGroup) {
+      const on = completionConfig.fields.includes(f);
+      html += `<label class="comp-field${on ? ' on' : ''}"><input type="checkbox" ${on ? 'checked' : ''} onchange="toggleCompletionField('${f}', this.checked)"> ${m.label}</label>`;
+    }
+    html += `</div></div>`;
+  }
+  container.innerHTML = html;
+  document.getElementById('comp-only-empty').checked = !!completionConfig.onlyIfEmpty;
+}
+function toggleCompletionField(field, on) {
+  if (on && !completionConfig.fields.includes(field)) completionConfig.fields.push(field);
+  if (!on) completionConfig.fields = completionConfig.fields.filter(f => f !== field);
+  saveCompletionConfig();
+  renderCompletionFieldPicker();
+  refreshAIScanResult();
+}
+function setAllCompletionFields(on) {
+  completionConfig.fields = on ? Object.keys(COMPLETION_FIELD_META) : [];
+  saveCompletionConfig();
+  renderCompletionFieldPicker();
+  refreshAIScanResult();
+}
+function toggleCompletionOnlyIfEmpty(on) {
+  completionConfig.onlyIfEmpty = !!on;
+  saveCompletionConfig();
+  refreshAIScanResult();
+}
+function refreshAIScanResult() {
+  const incomplete = findIncompleteEntries();
+  const el = document.getElementById('ai-scan-result');
+  if (!el) return;
+  // 字段缺失直方图
+  const fieldGap = {};
+  for (const e of incomplete) {
+    for (const f of completionConfig.fields) {
+      if (isFieldEmpty(e, f)) fieldGap[f] = (fieldGap[f] || 0) + 1;
+    }
+  }
+  const top5 = Object.entries(fieldGap).sort((a,b) => b[1]-a[1]).slice(0,5);
+  el.innerHTML = `
+    <div class="info-box green" style="margin-bottom:8px;">
+      <strong class="green-t">${incomplete.length} 条词条</strong> 有待补全字段
+      （已勾选 ${completionConfig.fields.length} 个字段${completionConfig.onlyIfEmpty ? ' · 仅填空模式' : ''}）。
+      预计分 ${Math.ceil(incomplete.length / 5)} 批处理。
+    </div>
+    ${top5.length > 0 ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">
+      ${top5.map(([f, n]) => `<span class="grammar-chip"><span class="chip-label">${COMPLETION_FIELD_META[f]?.label || f}</span>${n}</span>`).join('')}
+    </div>` : ''}
+  `;
+}
+
+function openAIModal() {
+  const completionLLM = getLLMSlot('completion');
+  if (!completionLLM.apiKey) {
+    toast('请先在 ⚙ 设置中填写「补全 LLM」的 API Key', 'error');
+    activeLLMTab = 'completion';
+    openSettingsModal();
+    return;
+  }
+  renderCompletionFieldPicker();
+  refreshAIScanResult();
+  document.getElementById('ai-scan-panel').classList.remove('hidden');
+  document.getElementById('ai-progress-panel').classList.add('hidden');
+  document.getElementById('ai-modal').classList.add('active');
+}
+function closeAIModal() {
+  if (aiState.running) { toast('正在运行中，请先停止', 'info'); return; }
+  document.getElementById('ai-modal').classList.remove('active');
+}
+function cancelAICompletion() { aiState.cancelRequested = true; }
+
+function aiLog(msg, type) {
+  const log = document.getElementById('ai-log');
+  if (!log) return;
+  const color = type === 'error' ? '#fca5a5' : type === 'success' ? 'var(--accent2)' : 'var(--fg-muted)';
+  const div = document.createElement('div');
+  div.style.cssText = `font-family:monospace;font-size:11px;color:${color};padding:2px 0;`;
+  div.textContent = msg;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+function updateAIProgress(done, total, current) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const bar = document.getElementById('ai-progress-bar');
+  const txt = document.getElementById('ai-progress-text');
+  if (bar) bar.style.width = pct + '%';
+  if (txt) txt.textContent = `${done} / ${total}（${pct}%）${current ? ' · ' + current : ''}`;
+}
+
+async function runAICompletion() {
+  const incomplete = findIncompleteEntries();
+  if (incomplete.length === 0) { toast('无需补全', 'info'); return; }
+
+  document.getElementById('ai-scan-panel').classList.add('hidden');
+  document.getElementById('ai-progress-panel').classList.remove('hidden');
+  document.getElementById('ai-close-btn').classList.add('hidden');
+  document.getElementById('ai-cancel-btn').classList.remove('hidden');
+  document.getElementById('ai-log').innerHTML = '';
+
+  aiState.running = true;
+  aiState.cancelRequested = false;
+
+  const batchSize = 5;
+  const total = incomplete.length;
+  let totalUpdated = 0;
+
+  aiLog(`开始补全 ${total} 条词条，分 ${Math.ceil(total / batchSize)} 批`, 'info');
+  updateAIProgress(0, total, '初始化...');
+
+  for (let i = 0; i < total; i += batchSize) {
+    if (aiState.cancelRequested) { aiLog('用户已取消', 'error'); break; }
+    const batch = incomplete.slice(i, i + batchSize);
+    const batchLabel = batch.map(e => e.kana).join(', ');
+    aiLog(`第 ${Math.floor(i / batchSize) + 1} 批：${batchLabel}`, 'info');
+    updateAIProgress(i, total, batch[0]?.kana);
+    try {
+      const prompt = buildCompletionPrompt(batch);
+      const resp = await callLLM(getLLMSlot('completion'), prompt, 4096);
+      const parsed = extractJSON(resp);
+      const updated = applyCompletions(batch, parsed);
+      totalUpdated += updated;
+      aiLog(`✓ 完成 ${updated}/${batch.length} 条`, 'success');
+      saveToStorage();
+    } catch (e) {
+      aiLog('✗ 批次失败：' + e.message, 'error');
+      console.error(e);
+    }
+    updateAIProgress(Math.min(i + batchSize, total), total, '');
+  }
+
+  aiState.running = false;
+  document.getElementById('ai-cancel-btn').classList.add('hidden');
+  document.getElementById('ai-close-btn').classList.remove('hidden');
+  aiLog(`✓ 全部完成：共更新 ${totalUpdated} 条词条`, 'success');
+  renderLayerGrid();
+  renderRootsList();
+  renderWordsList();
+  renderDetail();
+  renderTagCloud();
+  toast(`✓ 补全完成：${totalUpdated} 条更新`, 'success');
 }
 
 // =========================================================================
