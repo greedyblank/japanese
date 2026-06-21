@@ -180,7 +180,7 @@ input, textarea, select { font: inherit; }
 /* ============================== 3-pane View ============================== */
 .main-view {
   display: grid;
-  grid-template-columns: 1fr 1.2fr 1.5fr;
+  grid-template-columns: 0.85fr 1fr 1.65fr;
   gap: 14px;
   min-height: 600px;
 }
@@ -248,11 +248,14 @@ input, textarea, select { font: inherit; }
 }
 .word-kana {
   font-family: "Hiragino Mincho ProN", "Yu Mincho", "STKaiti", serif;
-  font-size: 15px;
+  font-size: 14px;
   color: var(--fg);
 }
 .word-kanji { color: var(--fg-muted); font-size: 12px; margin-left: 6px; }
-.word-meaning { font-size: 12px; color: var(--accent2); margin-top: 2px; }
+.word-romaji { color: var(--fg-dim); font-size: 10px; font-family: monospace; margin-left: 5px; }
+.word-pron { color: var(--accent2); font-size: 10px; font-family: monospace; margin-left: 5px; }
+.word-meaning { font-size: 11px; color: var(--accent2); margin-top: 2px; }
+.word-item { padding: 7px 10px !important; }
 .word-tags { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
 .tag-pill {
   font-size: 9px;
@@ -869,7 +872,7 @@ input, textarea, select { font: inherit; }
     <input type="hidden" id="edit-id">
     <div class="modal-row">
       <label>假名 Kana *</label>
-      <input id="add-kana" type="text" placeholder="例：見る">
+      <input id="add-kana" type="text" placeholder="假名读音（如：はな）">
     </div>
     <div class="modal-row">
       <label>汉字 Kanji</label>
@@ -1356,6 +1359,7 @@ function init() {
       saveToStorage();
     }
   }
+  if (migrateDefaultKanaReadings()) saveToStorage();
   renderLayerGrid();
   renderTagCloud();
   renderRootsList();
@@ -1369,6 +1373,8 @@ function init() {
   document.querySelectorAll('.sort-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.sort === sortMode);
   });
+  const firstLayer = (window.KANA_DATA?.LAYERS || [])[0];
+  if (firstLayer) selectLayer(firstLayer.id);
 }
 
 // =========================================================================
@@ -1395,11 +1401,37 @@ function loadFromStorage() {
   }
 }
 
+function migrateDefaultKanaReadings() {
+  const defaults = window.KANA_DATA?.ENTRIES || [];
+  let changed = false;
+  state.entries.forEach(entry => {
+    const match = /^default-(\d+)$/.exec(entry.id || '');
+    const source = match && defaults[Number(match[1])];
+    if (source && entry.kana === entry.kanji && source.kana && source.kana !== source.kanji) {
+      entry.kana = source.kana;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
 // =========================================================================
 // DATA ACCESSORS
 // =========================================================================
 function getLayer(id) {
   return (window.KANA_DATA?.LAYERS || []).find(l => l.id === id);
+}
+
+// 18 层 emoji 标识（替代 A/B/C 字母，更直观）
+const LAYER_EMOJI = {
+  A: '🌱', B: '🌸', C: '👁', D: '🧩', E: '✋', F: '🌫',
+  G: '⚡', H: '🌊', I: '🪨', J: '➡', K: '💨', L: '🌌',
+  M: '🎯', N: '🌿', O: '🍂', P: '⬛', Q: '🌀', R: '〰',
+};
+function getLayerEmoji(id) { return LAYER_EMOJI[id] || '🔹'; }
+// 取某层所有音根的假名（用于 atlas 卡片直接展示假名）
+function getLayerKanas(layerId) {
+  return getRootsByLayer(layerId).map(r => r.kana.split(' ')[0]); // "み (mi)" → "み"
 }
 
 // 检测是否含汉字（含汉字的词无法纯靠罗马字表自动转换，需 AI/手动填 roman）
@@ -1484,6 +1516,16 @@ function getRootsByLayer(layerId) {
   return Object.entries(roots)
     .filter(([_, r]) => r.layer === layerId)
     .map(([key, r]) => ({ key, ...r }));
+}
+
+function getEntryDisplayName(entry) {
+  const kana = entry.kana || '';
+  if (entry.kanji && kana && entry.kanji !== kana) return `${entry.kanji}（${kana}）`;
+  return entry.kanji || kana;
+}
+
+function getPronDisplay(pron) {
+  return String(pron || '').trim().replace(/^\[|\]$/g, '');
 }
 function getAllTags() {
   const set = new Set();
@@ -1601,6 +1643,26 @@ function getFilteredEntries() {
   });
 }
 
+function getSortedRoots(roots) {
+  return roots.slice().sort((a, b) => {
+    const ka = (a.kana || '').split(' ')[0];
+    const kb = (b.kana || '').split(' ')[0];
+    if (sortMode === 'roman') return (a.key || '').localeCompare(b.key || '', 'en');
+    return ka.localeCompare(kb, 'ja');
+  });
+}
+
+function getSortedEntries(entries) {
+  return entries.slice().sort((a, b) => {
+    if (sortMode === 'roman') {
+      const ra = a.roman || romanizeKana(a.kana) || '';
+      const rb = b.roman || romanizeKana(b.kana) || '';
+      return ra.localeCompare(rb, 'en');
+    }
+    return (a.kana || '').localeCompare(b.kana || '', 'ja');
+  });
+}
+
 // =========================================================================
 // RENDER · Layer Atlas
 // =========================================================================
@@ -1609,15 +1671,17 @@ function renderLayerGrid() {
   const layers = window.KANA_DATA?.LAYERS || [];
   grid.innerHTML = layers.map(l => {
     const count = state.entries.filter(e => e.layer === l.id).length;
-    const rootsInLayer = getRootsByLayer(l.id).length;
+    const rootsInLayer = getRootsByLayer(l.id);
+    const kanas = rootsInLayer.map(r => r.kana.split(' ')[0]).join(' ');
     const active = state.filter.layer === l.id ? 'active' : '';
     return `
       <button class="layer-btn ${active}" style="--layer-color: ${l.color}"
-              onclick="selectLayer('${l.id}')">
-        <span class="layer-id">${l.id}</span>
+              onclick="selectLayer('${l.id}')"
+              title="${l.id} · ${l.name}（${rootsInLayer.length} 音根）">
+        <span class="layer-id">${getLayerEmoji(l.id)}</span>
         <span class="layer-name">${l.name}</span>
         <span class="layer-count">${count}</span>
-        <span class="layer-desc">${l.desc}<br>${rootsInLayer} 个音根</span>
+        <span class="layer-desc">${kanas}<br><span style="opacity:0.6;">${rootsInLayer.length} 音根 · ${l.desc}</span></span>
       </button>
     `;
   }).join('');
@@ -1626,9 +1690,21 @@ function renderLayerGrid() {
 function selectLayer(id) {
   state.filter.layer = state.filter.layer === id ? null : id;
   state.filter.root = null;
+  // 卡片联动：选中层后自动选中该层首个音根 + 首个词条，避免详情栏空
+  if (state.filter.layer) {
+    const rootsInLayer = getSortedRoots(getRootsByLayer(state.filter.layer));
+    if (rootsInLayer.length > 0) {
+      state.filter.root = rootsInLayer[0].key;
+    }
+    const first = getSortedEntries(getFilteredEntries())[0];
+    state.selectedEntryId = first ? first.id : null;
+  } else {
+    state.selectedEntryId = null;
+  }
   renderLayerGrid();
   renderRootsList();
   renderWordsList();
+  renderDetail();
 }
 
 // =========================================================================
@@ -1641,7 +1717,8 @@ function renderRootsList() {
 
   let roots;
   if (state.filter.layer) {
-    title.textContent = `${state.filter.layer} 层音根`;
+    const layer = getLayer(state.filter.layer);
+    title.innerHTML = `${getLayerEmoji(state.filter.layer)} ${layer?.name || state.filter.layer + ' 层'}`;
     roots = getRootsByLayer(state.filter.layer);
   } else {
     title.textContent = '全部音根（按层分组）';
@@ -1662,12 +1739,12 @@ function renderRootsList() {
   Object.keys(grouped).sort().forEach(layerId => {
     const layer = getLayer(layerId);
     if (!state.filter.layer) {
-      html += `<div style="font-size:10px;color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.05em;padding:8px 12px 4px;">
-        <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:${layer.color};vertical-align:middle;margin-right:6px;text-align:center;line-height:16px;color:#fff;font-size:9px;font-weight:700;">${layerId}</span>
-        ${layer.name}
+      html += `<div style="font-size:10px;color:var(--fg-muted);padding:8px 10px 4px;display:flex;align-items:center;gap:5px;">
+        <span style="font-size:13px;">${getLayerEmoji(layerId)}</span>
+        <span style="color:${layer.color};font-weight:600;">${layer.name}</span>
       </div>`;
     }
-    grouped[layerId].forEach(r => {
+    getSortedRoots(grouped[layerId]).forEach(r => {
       const active = state.filter.root === r.key ? 'active' : '';
       const wordCount = state.entries.filter(e => e.root === r.key).length;
       html += `
@@ -1706,26 +1783,18 @@ function renderWordsList() {
   const title = document.getElementById('words-title');
   const count = document.getElementById('words-count');
 
-  let entries = getFilteredEntries();
-  // 排序：五十音序 或 罗马字 A-Z
-  entries = entries.slice().sort((a, b) => {
-    if (sortMode === 'roman') {
-      const ra = a.roman || romanizeKana(a.kana) || '';
-      const rb = b.roman || romanizeKana(b.kana) || '';
-      return ra.localeCompare(rb, 'en');
-    }
-    return (a.kana || '').localeCompare(b.kana || '', 'ja');
-  });
+  const entries = getSortedEntries(getFilteredEntries());
 
   if (state.filter.root) {
     const r = getRoot(state.filter.root);
-    title.textContent = `${r?.kana || state.filter.root} 的词条`;
+    title.innerHTML = `${r?.kana || state.filter.root} 的词条`;
   } else if (state.filter.layer) {
-    title.textContent = `${state.filter.layer} 层词条`;
+    const layer = getLayer(state.filter.layer);
+    title.innerHTML = `${getLayerEmoji(state.filter.layer)} ${layer?.name || state.filter.layer} 的词条`;
   } else if (state.filter.tag) {
-    title.textContent = `标签：${state.filter.tag}`;
+    title.textContent = `🏷 ${state.filter.tag}`;
   } else if (state.filter.search) {
-    title.textContent = `搜索："${state.filter.search}"`;
+    title.textContent = `🔍 "${state.filter.search}"`;
   } else {
     title.textContent = '全部词条';
   }
@@ -1739,18 +1808,31 @@ function renderWordsList() {
 
   container.innerHTML = entries.map(e => {
     const active = state.selectedEntryId === e.id ? 'active' : '';
-    const tags = (e.tags || []).slice(0, 3).map(t => `<span class="tag-pill">${t}</span>`).join('');
+    const tags = (e.tags || []).slice(0, 3).map(t => `<span class="tag-pill" onclick="event.stopPropagation();onTagClick('${escapeHtml(t).replace(/'/g,"\\'")}', event)">${escapeHtml(t)}</span>`).join('');
+    const romaji = e.roman || autoRoman(e.kana);
+    const pron = getPronDisplay(e.pron);
+    const displayName = getEntryDisplayName(e);
     return `
       <div class="word-item ${active}" onclick="selectEntry('${e.id}')">
         <div>
-          <span class="word-kana">${e.kana}</span>
-          ${e.kanji && e.kanji !== e.kana ? `<span class="word-kanji">${e.kanji}</span>` : ''}
+          <span class="word-kana">${escapeHtml(displayName)}</span>
+          ${romaji ? `<span class="word-romaji">/${escapeHtml(romaji)}/</span>` : ''}
+          ${pron ? `<span class="word-pron">[${escapeHtml(pron)}]</span>` : ''}
         </div>
-        <div class="word-meaning">${e.meaning}</div>
+        <div class="word-meaning">${escapeHtml(e.meaning)}</div>
         ${tags ? `<div class="word-tags">${tags}</div>` : ''}
       </div>
     `;
   }).join('');
+}
+
+// 统一的标签点击：普通点=筛选；Shift+点=进全屏浏览器对应位置
+function onTagClick(tag, event) {
+  if (event && event.shiftKey) { openTagBrowser(tag); return; }
+  state.filter.tag = state.filter.tag === tag ? null : tag;
+  tagCloudState.selectedTag = state.filter.tag;
+  renderTagCloud();
+  renderWordsList();
 }
 
 function selectEntry(id) {
@@ -1785,6 +1867,8 @@ function renderDetail() {
   const layer = getLayer(e.layer);
   const root = getRoot(e.root);
   const ttsBtn = `<button class="tts-btn" onclick="speak('${e.kana}')" title="朗读">▶</button>`;
+  const displayName = getEntryDisplayName(e);
+  const pron = getPronDisplay(e.pron);
 
   // 词法特征 chips（仅展示非空字段）
   const grammarChips = [];
@@ -1803,11 +1887,10 @@ function renderDetail() {
 
   panel.innerHTML = `
     <div class="detail-content fade-in">
-      <div class="detail-word">${escapeHtml(e.kana)} ${ttsBtn}${e.pos ? ` <span class="${posBadgeClass(e.pos)}">${escapeHtml(e.pos)}</span>` : ''}</div>
+      <div class="detail-word">${escapeHtml(displayName)} ${ttsBtn}${e.pos ? ` <span class="${posBadgeClass(e.pos)}">${escapeHtml(e.pos)}</span>` : ''}</div>
       <div class="detail-kanji">
-        ${e.kanji && e.kanji !== e.kana ? `汉字：${escapeHtml(e.kanji)}` : ''}
         ${e.roman ? `<span style="margin-left:10px;color:var(--fg-dim);font-family:monospace;">/${escapeHtml(e.roman)}/</span>` : ''}
-        ${e.pron ? `<span style="margin-left:10px;color:var(--accent2);font-family:monospace;">[${escapeHtml(e.pron)}]</span>` : ''}
+        ${pron ? `<span style="margin-left:10px;color:var(--accent2);font-family:monospace;">[${escapeHtml(pron)}]</span>` : ''}
       </div>
 
       <div class="detail-section">
@@ -1882,7 +1965,7 @@ function renderDetail() {
       <div class="detail-section">
         <div class="detail-label">标签</div>
         <div class="detail-badges">
-          ${e.tags.map(t => `<span class="tag-pill" onclick="selectTag('${escapeHtml(t)}')">${escapeHtml(t)}</span>`).join('')}
+          ${e.tags.map(t => `<span class="tag-pill" onclick="onTagClick('${escapeHtml(t).replace(/'/g,"\\'")}', event)">${escapeHtml(t)}</span>`).join('')}
         </div>
       </div>` : ''}
     </div>
@@ -2260,16 +2343,37 @@ function addWordToTag(tag) {
 }
 
 // =========================================================================
-// AI TAG RESTRUCTURE (20 大类 + 仅补漏)
+// AI TAG RESTRUCTURE（分類語彙表 12 根 + 仅补漏）
 // =========================================================================
-// 标准 20 大类参考体系（参考韩国国立国语院 학습용 어휘 분류 + 中国学科门类）
+// 国立国語研究所「分類語彙表」的 4 类及其有效部門组合
 const TAG_TAXONOMY_ROOTS = [
-  '身体·健康·医疗', '情感·心理·性格', '人物·人际·家庭', '日常生活·起居',
-  '饮食·烹饪·食材', '服饰·美容·外观', '居住·建筑·家具', '交通·出行·地点',
-  '时间·季节·历法', '自然·天文·地理·生物', '教育·学习·知识', '工作·职业·经济·商业',
-  '科学·技术·方法', '文化·艺术·娱乐·媒体', '政治·法律·社会', '历史·宗教·哲学·传统',
-  '语言·文字·思维·逻辑', '抽象概念·数量·关系', '动作·行为·过程', '状态·性质·变化',
+  '体・関係', '体・主体', '体・活動', '体・生産物', '体・自然',
+  '用・関係', '用・活動', '用・自然',
+  '相・関係', '相・活動', '相・自然', 'その他',
 ];
+
+function routeTagByKeyword(tag) {
+  const t = tag.toLowerCase();
+  const natural = /身|体|医|病|薬|痛|頭|手|足|胃|健康|山|川|雨|風|星|月|日|木|花|草|犬|猫|魚|鳥|自然|生物|植物|動物|生命|天気|温度/.test(t);
+  const relation = /関係|存在|時|日|月|年|春|夏|秋|冬|季節|暦|場所|空間|数|量|形|比較|程度|真偽|判断/.test(t);
+
+  if (/助詞|助動詞|接続|感動|呼び掛け|挨拶|鳴き声|擬音|擬態/.test(t)) return 'その他';
+  if (/動詞|行為|動作|する|やる|あげる|もらう|見|聞|使|行動|過程/.test(t)) {
+    if (natural) return '用・自然';
+    if (relation) return '用・関係';
+    return '用・活動';
+  }
+  if (/形容|状態|性質|変化|情|感|緒|心|怒|喜|悲|愛|憎|性格|評価/.test(t)) {
+    if (natural) return '相・自然';
+    if (relation) return '相・関係';
+    return '相・活動';
+  }
+  if (relation) return '体・関係';
+  if (/人|親|家|友|妻|夫|父|母|児|女|兄|姉|社会|政|治|法|律|権|機関/.test(t)) return '体・主体';
+  if (/食|飲|煮|焼|料理|味|料|飯|着|服|穿|化粧|裙|靴|美容|住|屋|建|門|窓|机|椅|家具|車|船|飛|道|街|工具|機械|技術/.test(t)) return '体・生産物';
+  if (natural) return '体・自然';
+  return '体・活動';
+}
 
 function collectTagsForAI() {
   const all = getAllTags();
@@ -2288,23 +2392,23 @@ function buildTagRestructurePrompt(tagData) {
   const currentGraph = Object.keys(state.tagGraph || {}).length > 0
     ? `\n【当前已有的标签图（请在此基础上优化）】\n${JSON.stringify(state.tagGraph, null, 2)}\n` : '';
   const rootsList = TAG_TAXONOMY_ROOTS.map((r, i) => `   ${i+1}. ${r}`).join('\n');
-  return `你是日语词汇语义分类专家，参照「韩国国立国语院 한국어 학습용 어휘 分류」与「中国学科门类」融合思路，为日语学习者重组标签体系。
+  return `你是日语词汇语义分类专家，参照日本国立国語研究所《分類語彙表 - 増補改訂版》的「类／部门」体系，为日语学习者重组标签体系。
 
 【当前所有标签（带样例）】
 共 ${tagData.length} 个标签，**你的输出必须逐条覆盖，不能漏掉任何一个**。
 ${tagList}
 ${currentGraph}
-【参考顶级分类（共 ${TAG_TAXONOMY_ROOTS.length} 个，强制使用此 20 个为根）】
+【参考顶级根（共 ${TAG_TAXONOMY_ROOTS.length} 个，强制使用）】
 ${rootsList}
 
 规则：
-- 所有 parent 链最终必须收敛到上面 20 个根之一
+- 所有 parent 链最终必须收敛到上面 ${TAG_TAXONOMY_ROOTS.length} 个根之一
 - **禁止创造新顶级**（如自创「其他」「杂项」等）
-- 看不准时按最主要语义归类；跨域词不必强行二选一，但要落进 20 根之一
+- 看不准时按最主要语义归类；跨域词不必强行二选一，但要落进指定根之一
 
 【任务】
 为每个标签生成结构化元数据：
-- parent: 父标签名（必须是上面 20 根之一，或另一个已存在的标签）
+- parent: 父标签名（必须是上面指定根之一，或另一个已存在的标签）
 - aliases: 同义/近义标签列表
 - related: 横向相关但非父子关系的标签
 
@@ -2392,39 +2496,16 @@ function showTagRestructurePreview(rawGraph) {
   };
   flattenDepth(2);
 
-  // 4) 根不在 20 标准根中的，按关键字兜底挂载
+  // 4) 根不在分類語彙表标准根中的，按关键字兜底挂载
   const rootSet = new Set(TAG_TAXONOMY_ROOTS);
-  const routeByKeyword = (tag) => {
-    const t = tag.toLowerCase();
-    if (/身|体|医|病|薬|痛|頭|手|足|胃|寝|健康/.test(t)) return '身体·健康·医疗';
-    if (/情|感|緒|心|怒|喜|悲|愛|憎|性|格/.test(t)) return '情感·心理·性格';
-    if (/人|親|家|友|妻|夫|父|母|児|女|兄|姉/.test(t)) return '人物·人际·家庭';
-    if (/日常|生活|起|寝|暮/.test(t)) return '日常生活·起居';
-    if (/食|飲|煮|焼|料理|味|料|飯/.test(t)) return '饮食·烹饪·食材';
-    if (/着|服|穿|化粧|裙|靴|美容/.test(t)) return '服饰·美容·外观';
-    if (/住|家|屋|建|門|窓|机|椅|家具/.test(t)) return '居住·建筑·家具';
-    if (/車|船|飛|道|街|行|走|都市|場所/.test(t)) return '交通·出行·地点';
-    if (/時|日|月|年|春|夏|秋|冬|季節|暦/.test(t)) return '时间·季节·历法';
-    if (/山|川|雨|風|星|月|日|木|花|草|犬|猫|魚|鳥|自然|生物/.test(t)) return '自然·天文·地理·生物';
-    if (/学|書|教|考|知|識|字|課|勉強/.test(t)) return '教育·学习·知识';
-    if (/金|買|売|商|仕事|職|業|経|貿/.test(t)) return '工作·职业·经济·商业';
-    if (/数|理|化|電|算|機|技|術|方|法|科学/.test(t)) return '科学·技术·方法';
-    if (/楽|歌|舞|画|映|劇|戯|遊|芸術|文化/.test(t)) return '文化·艺术·娱乐·媒体';
-    if (/政|治|法|律|社|会|権/.test(t)) return '政治·法律·社会';
-    if (/史|宗|仏|儒|道|神|哲|礼|歴史/.test(t)) return '历史·宗教·哲学·传统';
-    if (/語|言|詞|話|説|書|読|想|思|文字/.test(t)) return '语言·文字·思维·逻辑';
-    if (/大|小|多|少|高|低|冷|熱|良|悪|長|短|色|形/.test(t)) return '状态·性质·变化';
-    if (/為|する|やる|あげる|もらう|見|聞|使|行為|動作/.test(t)) return '动作·行为·过程';
-    return '抽象概念·数量·关系';
-  };
   Object.entries(newGraph).forEach(([tag, node]) => {
-    if (node && !node.parent && !rootSet.has(tag)) node.parent = routeByKeyword(tag);
+    if (node && !node.parent && !rootSet.has(tag)) node.parent = routeTagByKeyword(tag);
   });
   TAG_TAXONOMY_ROOTS.forEach(r => { if (!newGraph[r]) newGraph[r] = { parent: null, aliases: [], related: [] }; });
 
   // 5) 漏掉的输入标签 → 兜底挂载
   const missing = inputTags.filter(t => !newGraph[t]);
-  missing.forEach(t => { newGraph[t] = { parent: routeByKeyword(t), aliases: [], related: [] }; });
+  missing.forEach(t => { newGraph[t] = { parent: routeTagByKeyword(t), aliases: [], related: [] }; });
 
   // 6) aliases 补条目
   Object.entries(newGraph).forEach(([canonical, node]) => {
@@ -2443,7 +2524,7 @@ function showTagRestructurePreview(rawGraph) {
     <div class="restructure-preview">
       <div class="restructure-stat">
         <div style="color:var(--accent2);font-weight:600;margin-bottom:4px;">AI 重组结果（已自动清洗）</div>
-        <div>共 ${Object.keys(newGraph).length} 个标签 · ${roots.length} 个顶级（按 20 大类标准）</div>
+        <div>共 ${Object.keys(newGraph).length} 个标签 · ${roots.length} 个顶级（按分類語彙表根）</div>
         <div style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;">
           ${newKeys.length ? `<span style="color:var(--accent2);">新增 ${newKeys.length}</span>` : ''}
           ${bucketed > 0 ? `<span style="color:#fcd34d;">AI 漏掉 ${bucketed} 个（已按关键字兜底）</span>` : `<span style="color:var(--accent2);">✓ 全覆盖</span>`}
@@ -2505,18 +2586,18 @@ async function retryMissingTagsAI() {
   const missingTagData = allTagData.filter(t => missing.includes(t.tag));
   const tagList = missingTagData.map((t, i) => `${i+1}. ${t.tag} (${t.count}词条) — 例: ${t.samples.join(' | ')}`).join('\n');
   const rootsList = TAG_TAXONOMY_ROOTS.map((r, i) => `   ${i+1}. ${r}`).join('\n');
-  const prompt = `你之前漏掉了 ${missing.length} 个标签没分类，请只处理这些标签，把它们挂到 20 大类标准根下（可经由一个中间子类）。
+  const prompt = `你之前漏掉了 ${missing.length} 个标签没分类，请只处理这些标签，把它们挂到分類語彙表标准根下（可经由一个中间子类）。
 
 【待补分类的标签】
 ${tagList}
 
-【20 大类标准根（必须收敛到其中之一）】
+【分類語彙表标准根（必须收敛到其中之一）】
 ${rootsList}
 
 【约束】
 - 最大深度 2 层（根 → 子 → 叶）
 - 只输出这 ${missing.length} 个标签的归类
-- parent 必须是 20 根之一或已有标签
+- parent 必须是上述根之一或已有标签
 
 【输出 JSON】
 { "processedTags": [${missing.map(t => `"${t}"`).join(', ')}], "tagGraph": { "<标签名>": { "parent": "<父或根>", "aliases": [], "related": [] } } }`;
@@ -3377,8 +3458,8 @@ function buildAIEntryPrompt(input, existingTags) {
 
 【任务】
 用户输入可能是日语或中文。请深入分析并补全一个日语词典词条。
-- 若输入是中文：翻译为最贴切的日语词作为 kana（优先和语/常用汉字词，避免生僻译法）。
-- 若输入是日语：直接使用。
+- 若输入是中文：翻译为最贴切的日语词，并分别给出其假名读音与书写形式（优先和语/常用汉字词，避免生僻译法）。
+- 若输入是日语：识别其读音与书写形式；即使输入为汉字，也必须补出纯假名读音。
 - 输出**严格 JSON**，不要 markdown 围栏、不要前后多余文字。
 
 【音义矩阵参考框架（A-R 18 层 · 38 音根）】
@@ -3392,9 +3473,9 @@ ${buildPhoneticReference()}
   * 若词首音节无法精确匹配，按"最主语义"选最接近的音根。
 
 【字段说明】
-- kana: 日语词条（假名形式，含送り仮名，如 "見る"、"食べる"）
-- kanji: 汉字写法（如 "見る"；纯假名词则与 kana 相同）
-- roman: 标准式 Hepburn 罗马字（如 見る→"miru"、桜→"sakura"）
+- kana: 纯假名读音（含送り仮名，如 見る→"みる"、食べる→"たべる"、桜→"さくら"）
+- kanji: 书写形式（如 "見る"、"食べる"、"桜"；纯假名词则与 kana 相同）
+- roman: 标准式 Hepburn 罗马字（根据 kana 生成，如 みる→"miru"、さくら→"sakura"）
 - pron: 实际发音，方括号包围（如 [mirɯ]、[kekkon]）
 - meaning: 中文释义；多义项用「；」分隔，每项不超 15 字
 - layer: 上述 18 层 id 之一（A-R）
@@ -3481,7 +3562,7 @@ async function runAINewEntry() {
     const parsed = extractJSON(resp);
     if (!parsed.kana || !parsed.meaning) throw new Error('AI 返回缺少 kana 或 meaning 字段');
 
-    const kana = String(parsed.kana).trim();
+  const kana = String(parsed.kana).trim();
     // layer / root 校验 + 兜底
     const validLayers = getValidLayers();
     const validRoots = getValidRoots();
@@ -3548,7 +3629,7 @@ function renderAIEntryPreview(entry) {
     <div class="ai-add-preview">
       ${dupWarning}
       <div style="font-family:'Hiragino Mincho ProN','Yu Mincho',serif;font-size:24px;color:var(--accent);margin-bottom:4px;">
-        ${escapeHtml(entry.kana)} ${entry.kanji && entry.kanji !== entry.kana ? `<span style="font-size:14px;color:var(--fg-muted);">（${escapeHtml(entry.kanji)}）</span>` : ''}
+        ${escapeHtml(getEntryDisplayName(entry))}
         ${entry.roman ? `<span style="font-size:12px;color:var(--fg-dim);font-family:monospace;">/${escapeHtml(entry.roman)}/</span>` : ''}
       </div>
       <div style="font-size:13px;color:var(--accent2);margin-bottom:8px;">${escapeHtml(entry.meaning)}</div>
@@ -3605,9 +3686,10 @@ function closeAIAddModal() {
 // AI COMPLETION (自动补全)
 // =========================================================================
 
-// 27 个可补全字段（3 组），含元数据
+// 28 个可补全字段（3 组），含元数据
 const COMPLETION_FIELD_META = {
   // 内容字段
+  kana:        { label: '假名读音',   group: '内容', type: 'string' },
   pron:        { label: '实际发音',   group: '内容', type: 'string' },
   roman:       { label: '罗马字',     group: '内容', type: 'string' },
   analysis:    { label: '音义分析',   group: '内容', type: 'longtext' },
@@ -3658,6 +3740,9 @@ function saveCompletionConfig() {
 
 // 字段为空判定（bool false 也算空）
 function isFieldEmpty(entry, field) {
+  if (field === 'kana') {
+    return !entry.kana || (entry.kana === entry.kanji && _hasKanji(entry.kana));
+  }
   const v = entry[field];
   if (v == null) return true;
   if (Array.isArray(v)) return v.length === 0;
@@ -3704,10 +3789,11 @@ function buildCompletionPrompt(batch) {
     if (e.kanji) existing.push(`汉:${e.kanji}`);
     if (e.pos) existing.push(`品詞:${e.pos}`);
     if (e.wordOrigin) existing.push(`語種:${e.wordOrigin}`);
-    return `${i + 1}. ${e.kana} | 释义: ${senses || '待你根据词形推断'}${existing.length > 0 ? ' | 已知: ' + existing.join(' ') : ''}`;
+    return `${i + 1}. sourceKana: ${e.kana} | 释义: ${senses || '待你根据词形推断'}${existing.length > 0 ? ' | 已知: ' + existing.join(' ') : ''}`;
   }).join('\n');
 
   const fieldDesc = {
+    kana: '纯假名读音（如 花 → はな；不得含汉字）',
     pron: '实际发音（应用音变规则，方括号包围如 [mirɯ]）',
     roman: '标准式 Hepburn 罗马字（見る=miru、桜=sakura）',
     analysis: '基于音义矩阵的语音语义分析 20-80 字（拆解音根如何流转出词义）',
@@ -3736,7 +3822,7 @@ function buildCompletionPrompt(batch) {
   };
   const fieldList = fields.map(f => `- ${f}: ${fieldDesc[f] || ''}`).join('\n');
 
-  const sampleObj = { kana: batch[0]?.kana || '見る' };
+  const sampleObj = { sourceKana: batch[0]?.kana || '見る' };
   for (const f of fields) {
     if (f === 'tags' || f === 'related' || f === 'examples') sampleObj[f] = [];
     else if (f === 'mimetic') sampleObj[f] = false;
@@ -3769,14 +3855,15 @@ ${wordList}
 仅输出严格 JSON，无任何额外文字、无 markdown 代码块。格式：
 {"results":[${JSON.stringify(sampleObj)}, ...]}
 
-每个 kana 必须与输入完全对应。`;
+每个 sourceKana 必须与输入完全对应；它只用于定位原词条，不是待补全字段。`;
 }
 
 function applyCompletions(batch, results) {
   const cfg = completionConfig;
   let updated = 0;
   for (const r of (results.results || [])) {
-    const target = batch.find(e => e.kana === r.kana);
+    const sourceKana = typeof r.sourceKana === 'string' ? r.sourceKana : r.kana;
+    const target = batch.find(e => e.kana === sourceKana);
     if (!target) continue;
     let changed = false;
     for (const field of cfg.fields) {
@@ -3978,6 +4065,52 @@ document.querySelectorAll('.modal-backdrop').forEach(m => {
   m.addEventListener('click', e => {
     if (e.target === m) m.classList.remove('active');
   });
+});
+
+// =========================================================================
+// KEYBOARD SHORTCUTS
+// =========================================================================
+document.addEventListener('keydown', (e) => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  const inField = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
+  const anyModalActive = document.querySelector('.modal-backdrop.active');
+
+  // ESC：关弹窗 / 清搜索
+  if (e.key === 'Escape') {
+    if (anyModalActive) {
+      anyModalActive.classList.remove('active');
+    } else if (document.activeElement === document.getElementById('search-input')) {
+      clearSearch();
+      document.getElementById('search-input').blur();
+    }
+    return;
+  }
+
+  if (inField || anyModalActive) return;
+
+  // `/`：聚焦搜索
+  if (e.key === '/') {
+    e.preventDefault();
+    document.getElementById('search-input').focus();
+    return;
+  }
+  // n：新词条
+  if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openAddModal(); return; }
+  // a：AI 新词条
+  if (e.key === 'a' || e.key === 'A') { e.preventDefault(); openAIAddModal(); return; }
+  // b：批量导入
+  if (e.key === 'b' || e.key === 'B') { e.preventDefault(); openBulkPaste(); return; }
+  // t：标签浏览器
+  if (e.key === 't' || e.key === 'T') { e.preventDefault(); openTagBrowser(); return; }
+  // s：切换排序
+  if (e.key === 's' || e.key === 'S') { e.preventDefault(); toggleSortMode(); return; }
+  // 1-9：跳转到前 9 层（A-I）
+  if (/^[1-9]$/.test(e.key)) {
+    const layers = window.KANA_DATA?.LAYERS || [];
+    const idx = parseInt(e.key) - 1;
+    if (idx < layers.length) selectLayer(layers[idx].id);
+    return;
+  }
 });
 
 // =========================================================================
