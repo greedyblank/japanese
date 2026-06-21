@@ -552,6 +552,82 @@ input, textarea, select { font: inherit; }
 .file-sync-indicator.synced { color: var(--accent2); border-color: rgba(52,211,153,0.3); }
 .file-sync-indicator a { color: var(--accent); text-decoration: none; }
 .file-sync-indicator a:hover { text-decoration: underline; }
+
+/* ============================== Collapsible sections (add/edit modal) ============================== */
+.section-collapse {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.section-collapse > summary {
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.02);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+.section-collapse > summary::-webkit-details-marker { display: none; }
+.section-collapse > summary::before {
+  content: '▸'; color: var(--fg-muted); transition: transform 0.15s; font-size: 10px;
+}
+.section-collapse[open] > summary::before { transform: rotate(90deg); }
+.section-collapse > summary .hint {
+  font-size: 10px; font-weight: 400; color: var(--fg-dim); margin-left: auto;
+}
+.section-collapse .section-body { padding: 10px 12px; border-top: 1px solid var(--border); }
+
+/* Grammar field grid */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.field-grid .field-item label {
+  font-size: 10px; color: var(--fg-muted);
+  text-transform: none; letter-spacing: 0;
+  margin-bottom: 2px; display: block;
+}
+.field-grid .field-item select,
+.field-grid .field-item input {
+  width: 100%; padding: 5px 8px; font-size: 12px;
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: 5px; color: var(--fg);
+}
+.bool-row {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  padding-top: 6px; margin-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.bool-row label {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--fg-muted);
+  text-transform: none; letter-spacing: 0; cursor: pointer;
+  margin-bottom: 0;
+}
+.bool-row input[type=checkbox] { accent-color: var(--accent2); margin: 0; }
+
+/* POS badge color groups (detail panel) */
+.pos-badge { font-size: 10px; padding: 1px 7px; border-radius: 8px; border: 1px solid transparent; }
+.pos-badge.subst  { background: rgba(56,189,248,0.12); color: var(--accent); border-color: rgba(56,189,248,0.25); }
+.pos-badge.pred   { background: rgba(52,211,153,0.12); color: var(--accent2); border-color: rgba(52,211,153,0.25); }
+.pos-badge.modif  { background: rgba(251,191,36,0.12); color: var(--accent3); border-color: rgba(251,191,36,0.25); }
+.pos-badge.other  { background: rgba(148,163,184,0.12); color: var(--fg-muted); border-color: rgba(148,163,184,0.25); }
+
+/* Grammar field chips in detail panel */
+.grammar-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.grammar-chip {
+  font-size: 10px; padding: 2px 7px; border-radius: 6px;
+  background: rgba(168,85,247,0.1); color: var(--accent5);
+  border: 1px solid rgba(168,85,247,0.2);
+}
+.grammar-chip .chip-label { color: var(--fg-dim); margin-right: 3px; }
 </style>
 </head>
 <body>
@@ -668,6 +744,201 @@ input, textarea, select { font: inherit; }
       <label>标签 Tags <span style="text-transform:none;color:var(--fg-dim);">（空格分隔，1-3 个）</span></label>
       <input id="add-tags" type="text" placeholder="例：动词 感知">
     </div>
+
+    <!-- ============ 深度内容区（可折叠） ============ -->
+    <details class="section-collapse">
+      <summary>📝 深度内容<span class="hint">罗马字 / 词源 / 相关词 / 例句 / 文化背景</span></summary>
+      <div class="section-body">
+        <div class="modal-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div>
+            <label>罗马字 Roman</label>
+            <input id="add-roman" type="text" placeholder="例：miru（留空自动生成）">
+          </div>
+          <div>
+            <label>实际发音 Pron</label>
+            <input id="add-pron" type="text" placeholder="例：[mirɯ]">
+          </div>
+        </div>
+        <div class="modal-row">
+          <label>词源 Etymology</label>
+          <textarea id="add-etymology" placeholder="古和语 / 汉字词来源 / 词根词缀追溯"></textarea>
+        </div>
+        <div class="modal-row">
+          <label>相关词 Related <span style="text-transform:none;color:var(--fg-dim);">（空格分隔，反义加 (反)）</span></label>
+          <input id="add-related" type="text" placeholder="例：見える (反)見せる">
+        </div>
+        <div class="modal-row">
+          <label>例句 Examples <span style="text-transform:none;color:var(--fg-dim);">（每行一条：日文 — 中文）</span></label>
+          <textarea id="add-examples" placeholder="本を読む — 读书&#10;見て！— 看！"></textarea>
+        </div>
+        <div class="modal-row">
+          <label>文化背景 CulturalNote</label>
+          <textarea id="add-culturalnote" placeholder="历史 / 制度 / 文化背景（佛教/儒学/汉字文化圈等）"></textarea>
+        </div>
+      </div>
+    </details>
+
+    <!-- ============ 词法特征区（可折叠 · 17 字段） ============ -->
+    <details class="section-collapse">
+      <summary>🔬 词法特征<span class="hint">17 维语言学标注（按需填写，不适用留空）</span></summary>
+      <div class="section-body">
+        <div class="field-grid">
+          <div class="field-item">
+            <label>品詞</label>
+            <select id="add-pos">
+              <option value="">— 未指定 —</option>
+              <option value="名詞">名詞</option>
+              <option value="代名詞">代名詞</option>
+              <option value="数詞">数詞</option>
+              <option value="動詞">動詞</option>
+              <option value="形容詞">形容詞</option>
+              <option value="形容動詞">形容動詞</option>
+              <option value="副詞">副詞</option>
+              <option value="連体詞">連体詞</option>
+              <option value="接続詞">接続詞</option>
+              <option value="助詞">助詞</option>
+              <option value="助動詞">助動詞</option>
+              <option value="感動詞">感動詞</option>
+              <option value="接頭辞">接頭辞</option>
+              <option value="接尾辞">接尾辞</option>
+            </select>
+          </div>
+          <div class="field-item">
+            <label>活用（用言）</label>
+            <select id="add-conjugation">
+              <option value="">— 不适用 —</option>
+              <option value="五段">五段</option>
+              <option value="上一段">上一段</option>
+              <option value="下一段">下一段</option>
+              <option value="カ行変格">カ行変格</option>
+              <option value="サ行変格">サ行変格</option>
+            </select>
+          </div>
+          <div class="field-item">
+            <label>自他（動詞）</label>
+            <select id="add-transitivity">
+              <option value="">— 不适用 —</option>
+              <option value="自動詞">自動詞</option>
+              <option value="他動詞">他動詞</option>
+              <option value="両方">両方</option>
+            </select>
+          </div>
+
+          <div class="field-item">
+            <label>敬語</label>
+            <select id="add-keigo">
+              <option value="">— 无 —</option>
+              <option value="尊敬語">尊敬語</option>
+              <option value="謙譲語">謙譲語</option>
+              <option value="丁寧語">丁寧語</option>
+              <option value="美化語">美化語</option>
+            </select>
+          </div>
+          <div class="field-item">
+            <label>丁寧度</label>
+            <select id="add-politeness">
+              <option value="">— 未指定 —</option>
+              <option value="普通体">普通体（だ・る）</option>
+              <option value="丁寧体">丁寧体（です・ます）</option>
+            </select>
+          </div>
+          <div class="field-item">
+            <label>語種</label>
+            <select id="add-wordorigin">
+              <option value="">— 未指定 —</option>
+              <option value="和語">和語</option>
+              <option value="漢語">漢語</option>
+              <option value="外来語">外来語</option>
+              <option value="混種語">混種語</option>
+              <option value="擬音語">擬音語</option>
+              <option value="擬態語">擬態語</option>
+            </select>
+          </div>
+
+          <div class="field-item">
+            <label>音訓（漢語）</label>
+            <select id="add-yomi">
+              <option value="">— 不适用 —</option>
+              <option value="音読み">音読み</option>
+              <option value="訓読み">訓読み</option>
+              <option value="両方">両方</option>
+            </select>
+          </div>
+          <div class="field-item">
+            <label>派生</label>
+            <select id="add-derivation">
+              <option value="">— 未指定 —</option>
+              <option value="単純">単純</option>
+              <option value="派生">派生</option>
+              <option value="複合">複合</option>
+              <option value="畳語">畳語</option>
+              <option value="接頭">接頭</option>
+              <option value="接尾">接尾</option>
+            </select>
+          </div>
+          <div class="field-item">
+            <label>基本形（派生源）</label>
+            <input id="add-baseform" type="text" placeholder="例：食べる">
+          </div>
+
+          <div class="field-item">
+            <label>送り仮名</label>
+            <input id="add-okurigana" type="text" placeholder="例：る">
+          </div>
+          <div class="field-item">
+            <label>語体</label>
+            <select id="add-register">
+              <option value="">— 未指定 —</option>
+              <option value="話し言葉">話し言葉</option>
+              <option value="書き言葉">書き言葉</option>
+              <option value="フォーマル">フォーマル</option>
+              <option value="カジュアル">カジュアル</option>
+            </select>
+          </div>
+          <div class="field-item">
+            <label>頻度</label>
+            <select id="add-frequency">
+              <option value="">— 未指定 —</option>
+              <option value="高頻">高頻（top 1000）</option>
+              <option value="中頻">中頻</option>
+              <option value="低頻">低頻</option>
+            </select>
+          </div>
+
+          <div class="field-item">
+            <label>方言</label>
+            <select id="add-dialect">
+              <option value="">標準語</option>
+              <option value="関西">関西</option>
+              <option value="東北">東北</option>
+              <option value="九州">九州</option>
+              <option value="沖縄">沖縄</option>
+              <option value="博多">博多</option>
+              <option value="京都">京都</option>
+              <option value="名古屋">名古屋</option>
+            </select>
+          </div>
+          <div class="field-item">
+            <label>極性</label>
+            <select id="add-polarity">
+              <option value="">— 未指定 —</option>
+              <option value="肯定">肯定</option>
+              <option value="否定">否定</option>
+              <option value="中性">中性</option>
+            </select>
+          </div>
+          <div class="field-item">
+            <label>アクセント</label>
+            <input id="add-pitchaccent" type="text" placeholder="頭高/中高/尾高/平板 或 LHL">
+          </div>
+        </div>
+
+        <div class="bool-row">
+          <label><input type="checkbox" id="add-mimetic"> 擬音語・擬態語</label>
+        </div>
+      </div>
+    </details>
+
     <div class="modal-actions">
       <button class="btn" onclick="closeAddModal()">取消</button>
       <button class="btn btn-primary" onclick="saveEntry()">保存</button>
@@ -868,6 +1139,71 @@ function loadFromStorage() {
 // =========================================================================
 function getLayer(id) {
   return (window.KANA_DATA?.LAYERS || []).find(l => l.id === id);
+}
+
+// 标准式 Hepburn 罗马字转换（平假名/片假名 → romaji）
+const _ROMAJI_TABLE = (() => {
+  const base = {
+    a:'a',i:'i',u:'u',e:'e',o:'o',
+    ka:'ka',ki:'ki',ku:'ku',ke:'ke',ko:'ko',
+    sa:'sa',shi:'shi',su:'su',se:'se',so:'so',
+    ta:'ta',chi:'chi',tsu:'tsu',te:'te',to:'to',
+    na:'na',ni:'ni',nu:'nu',ne:'ne',no:'no',
+    ha:'ha',hi:'hi',fu:'fu',he:'he',ho:'ho',
+    ma:'ma',mi:'mi',mu:'mu',me:'me',mo:'mo',
+    ya:'ya',yu:'yu',yo:'yo',
+    ra:'ra',ri:'ri',ru:'ru',re:'re',ro:'ro',
+    wa:'wa',wo:'wo',n:'n',
+  };
+  const dak = {
+    ga:'ga',gi:'gi',gu:'gu',ge:'ge',go:'go',
+    za:'za',ji:'ji',zu:'zu',ze:'ze',zo:'zo',
+    da:'da',ji_:'ji',zu_:'zu',de:'de',do:'do',
+    ba:'ba',bi:'bi',bu:'bu',be:'be',bo:'bo',
+    pa:'pa',pi:'pi',pu:'pu',pe:'pe',po:'po',
+  };
+  // 建立假名→罗马字映射（平假名 + 片假名）
+  const hira = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ';
+  const kata = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ';
+  const rom = ['a','i','u','e','o','ka','ki','ku','ke','ko','sa','shi','su','se','so','ta','chi','tsu','te','to','na','ni','nu','ne','no','ha','hi','fu','he','ho','ma','mi','mu','me','mo','ya','yu','yo','ra','ri','ru','re','ro','wa','wo','n','ga','gi','gu','ge','go','za','ji','zu','ze','zo','da','ji','zu','de','do','ba','bi','bu','be','bo','pa','pi','pu','pe','po'];
+  const map = {};
+  for (let i = 0; i < hira.length; i++) map[hira[i]] = rom[i];
+  for (let i = 0; i < kata.length; i++) map[kata[i]] = rom[i];
+  // 小書き・特殊
+  const small = {'ゃ':'ya','ゅ':'yu','ょ':'yo','ぁ':'a','ぃ':'i','ぅ':'u','ぇ':'e','ぉ':'o','ゎ':'wa','っ':'*','ー':'-'};
+  const smallK = {'ャ':'ya','ュ':'yu','ョ':'yo','ァ':'a','ィ':'i','ゥ':'u','ェ':'e','ォ':'o','ヮ':'wa','ッ':'*','ー':'-'};
+  Object.assign(map, small, smallK);
+  return map;
+})();
+const _ROMAJI_Y = {ki:'ky',shi:'sh',chi:'ch',ni:'ny',hi:'hy',mi:'my',ri:'ry',gi:'gy',ji:'j',bi:'by',pi:'py'};
+function romanizeKana(s) {
+  if (!s) return '';
+  let out = '';
+  let prev = '';
+  const chars = [...s];
+  for (let i = 0; i < chars.length; i++) {
+    const c = chars[i];
+    const r = _ROMAJI_TABLE[c];
+    if (r === '*') {
+      // 促音：下一个音首字母双写（chi→tchi, shi→sshi）
+      const next = _ROMAJI_TABLE[chars[i+1]] || '';
+      const lead = next.startsWith('ch') ? 't' : next[0] || '';
+      out += lead;
+      continue;
+    }
+    // 拗音处理：やゆよ 跟在 ki/shi/chi 等后面
+    if (['ya','yu','yo'].includes(r) && _ROMAJI_Y[prev]) {
+      out = out.slice(0, -(_ROMAJI_Y[prev === 'ji' ? 'ji' : prev].length)) ;
+      out += _ROMAJI_Y[prev] + r.slice(1);
+      prev = '';
+      continue;
+    }
+    if (r) { out += r; prev = r; }
+    else { out += c; prev = ''; }
+  }
+  // ん ん → n' 防止与后续元音粘连
+  out = out.replace(/n([aeiouy])/g, "n'$1");
+  return out;
 }
 function getRoot(key) {
   return (window.KANA_DATA?.ROOTS || {})[key];
@@ -1075,27 +1411,52 @@ function renderDetail() {
   const root = getRoot(e.root);
   const ttsBtn = `<button class="tts-btn" onclick="speak('${e.kana}')" title="朗读">▶</button>`;
 
+  // 词法特征 chips（仅展示非空字段）
+  const grammarChips = [];
+  const grammarLabels = {
+    pos:'品詞', conjugation:'活用', transitivity:'自他', keigo:'敬語',
+    politeness:'丁寧度', wordOrigin:'語種', yomi:'音訓', derivation:'派生',
+    register:'語体', frequency:'頻度', dialect:'方言', polarity:'極性',
+    pitchAccent:'アクセント',
+  };
+  for (const [k, label] of Object.entries(grammarLabels)) {
+    if (e[k]) grammarChips.push(`<span class="grammar-chip"><span class="chip-label">${label}</span>${escapeHtml(e[k])}</span>`);
+  }
+  if (e.baseForm) grammarChips.push(`<span class="grammar-chip"><span class="chip-label">基本形</span>${escapeHtml(e.baseForm)}</span>`);
+  if (e.okurigana) grammarChips.push(`<span class="grammar-chip"><span class="chip-label">送り仮名</span>${escapeHtml(e.okurigana)}</span>`);
+  if (e.mimetic) grammarChips.push(`<span class="grammar-chip">擬音擬態</span>`);
+
   panel.innerHTML = `
     <div class="detail-content fade-in">
-      <div class="detail-word">${e.kana} ${ttsBtn}</div>
-      ${e.kanji && e.kanji !== e.kana ? `<div class="detail-kanji">汉字：${e.kanji}</div>` : ''}
+      <div class="detail-word">${escapeHtml(e.kana)} ${ttsBtn}${e.pos ? ` <span class="${posBadgeClass(e.pos)}">${escapeHtml(e.pos)}</span>` : ''}</div>
+      <div class="detail-kanji">
+        ${e.kanji && e.kanji !== e.kana ? `汉字：${escapeHtml(e.kanji)}` : ''}
+        ${e.roman ? `<span style="margin-left:10px;color:var(--fg-dim);font-family:monospace;">/${escapeHtml(e.roman)}/</span>` : ''}
+        ${e.pron ? `<span style="margin-left:10px;color:var(--accent2);font-family:monospace;">[${escapeHtml(e.pron)}]</span>` : ''}
+      </div>
 
       <div class="detail-section">
         <div class="detail-label">中文释义</div>
-        <div class="detail-value">${e.meaning}</div>
+        <div class="detail-value">${escapeHtml(e.meaning)}</div>
       </div>
 
       <div class="detail-section">
         <div class="detail-label">音义分析</div>
-        <div class="detail-analysis">${e.analysis}</div>
+        <div class="detail-analysis">${escapeHtml(e.analysis)}</div>
       </div>
+
+      ${grammarChips.length > 0 ? `
+      <div class="detail-section">
+        <div class="detail-label">词法特征</div>
+        <div class="grammar-chips">${grammarChips.join('')}</div>
+      </div>` : ''}
 
       <div class="detail-section">
         <div class="detail-label">所属</div>
         <div class="detail-badges">
-          <span class="badge badge-layer" style="--layer-color: ${layer?.color || 'var(--accent)'}">${e.layer} · ${layer?.name || ''}</span>
-          <span class="badge">${root?.kana || e.root}</span>
-          <span class="badge">${root?.core || ''}</span>
+          <span class="badge badge-layer" style="--layer-color: ${layer?.color || 'var(--accent)'}">${escapeHtml(e.layer)} · ${escapeHtml(layer?.name || '')}</span>
+          <span class="badge">${escapeHtml(root?.kana || e.root)}</span>
+          <span class="badge">${escapeHtml(root?.core || '')}</span>
         </div>
       </div>
 
@@ -1103,26 +1464,60 @@ function renderDetail() {
       <div class="detail-section">
         <div class="detail-label">音根深层语义</div>
         <div class="detail-value" style="background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:10px 12px;color:#fcd34d;font-size:12px;line-height:1.7;">
-          ${root.deep}
+          ${escapeHtml(root.deep)}
         </div>
       </div>
       <div class="detail-section">
         <div class="detail-label">同源词网络</div>
         <div class="detail-value" style="font-family:'Hiragino Mincho ProN','Yu Mincho',serif;color:var(--accent);font-size:13px;">
-          ${(root.examples || []).join(' · ')}
+          ${(root.examples || []).map(escapeHtml).join(' · ')}
         </div>
       </div>
       ` : ''}
+
+      ${e.etymology ? `
+      <div class="detail-section">
+        <div class="detail-label">词源</div>
+        <div class="detail-value" style="font-size:12px;line-height:1.7;">${escapeHtml(e.etymology)}</div>
+      </div>` : ''}
+
+      ${e.culturalNote ? `
+      <div class="detail-section">
+        <div class="detail-label">文化背景</div>
+        <div class="detail-value" style="font-size:12px;line-height:1.7;">${escapeHtml(e.culturalNote)}</div>
+      </div>` : ''}
+
+      ${(e.related && e.related.length) ? `
+      <div class="detail-section">
+        <div class="detail-label">相关词</div>
+        <div class="detail-value" style="font-family:'Hiragino Mincho ProN','Yu Mincho',serif;color:var(--accent5);font-size:13px;">
+          ${e.related.map(r => r.startsWith('(反)') ? `<span style="color:#fca5a5;">${escapeHtml(r)}</span>` : escapeHtml(r)).join(' · ')}
+        </div>
+      </div>` : ''}
+
+      ${(e.examples && e.examples.length) ? `
+      <div class="detail-section">
+        <div class="detail-label">例句</div>
+        <div class="detail-value" style="font-size:12px;line-height:1.8;">
+          ${e.examples.map(ex => `<div>${escapeHtml(ex)}</div>`).join('')}
+        </div>
+      </div>` : ''}
 
       ${(e.tags && e.tags.length) ? `
       <div class="detail-section">
         <div class="detail-label">标签</div>
         <div class="detail-badges">
-          ${e.tags.map(t => `<span class="tag-pill" onclick="selectTag('${t}')">${t}</span>`).join('')}
+          ${e.tags.map(t => `<span class="tag-pill" onclick="selectTag('${escapeHtml(t)}')">${escapeHtml(t)}</span>`).join('')}
         </div>
       </div>` : ''}
     </div>
   `;
+}
+
+// HTML 转义（防 XSS）
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 // =========================================================================
@@ -1203,23 +1598,76 @@ function openAddModal(entry) {
     document.getElementById('add-meaning').value = entry.meaning || '';
     document.getElementById('add-analysis').value = entry.analysis || '';
     document.getElementById('add-tags').value = (entry.tags || []).join(' ');
+    // 深度内容
+    document.getElementById('add-roman').value = entry.roman || '';
+    document.getElementById('add-pron').value = entry.pron || '';
+    document.getElementById('add-etymology').value = entry.etymology || '';
+    document.getElementById('add-related').value = (entry.related || []).join(' ');
+    document.getElementById('add-examples').value = (entry.examples || []).join('\n');
+    document.getElementById('add-culturalnote').value = entry.culturalNote || '';
+    // 词法特征
+    ['add-pos','add-conjugation','add-transitivity','add-keigo','add-politeness',
+     'add-wordorigin','add-yomi','add-derivation','add-baseform','add-okurigana',
+     'add-register','add-frequency','add-dialect','add-polarity'].forEach(id => {
+      const key = id.replace('add-','');
+      const el = document.getElementById(id);
+      if (el) el.value = entry[key] || '';
+    });
+    document.getElementById('add-pitchaccent').value = entry.pitchAccent || '';
+    document.getElementById('add-mimetic').checked = !!entry.mimetic;
   } else {
     document.getElementById('add-modal-title').textContent = '添加词条';
     document.getElementById('edit-id').value = '';
-    ['add-kana','add-kanji','add-meaning','add-analysis','add-tags'].forEach(id => {
+    ['add-kana','add-kanji','add-meaning','add-analysis','add-tags',
+     'add-roman','add-pron','add-etymology','add-related','add-examples','add-culturalnote',
+     'add-pitchaccent'].forEach(id => { document.getElementById(id).value = ''; });
+    ['add-pos','add-conjugation','add-transitivity','add-keigo','add-politeness',
+     'add-wordorigin','add-yomi','add-derivation','add-baseform','add-okurigana',
+     'add-register','add-frequency','add-dialect','add-polarity'].forEach(id => {
       document.getElementById(id).value = '';
     });
+    document.getElementById('add-mimetic').checked = false;
     // 预填当前选中的层和音根
     if (state.filter.layer) {
       document.getElementById('add-layer').value = state.filter.layer;
       populateRootSelect();
       if (state.filter.root) document.getElementById('add-root').value = state.filter.root;
+    } else {
+      document.getElementById('add-layer').value = '';
+      populateRootSelect();
     }
   }
 }
 function closeAddModal() {
   document.getElementById('add-modal').classList.remove('active');
 }
+
+// 17 语法字段校验白名单（防止脏值入库）
+const GRAMMAR_ENUMS = {
+  pos: ['名詞','代名詞','数詞','動詞','形容詞','形容動詞','副詞','連体詞','接続詞','助詞','助動詞','感動詞','接頭辞','接尾辞'],
+  conjugation: ['五段','上一段','下一段','カ行変格','サ行変格'],
+  transitivity: ['自動詞','他動詞','両方'],
+  keigo: ['尊敬語','謙譲語','丁寧語','美化語'],
+  politeness: ['普通体','丁寧体'],
+  wordOrigin: ['和語','漢語','外来語','混種語','擬音語','擬態語'],
+  yomi: ['音読み','訓読み','両方'],
+  derivation: ['単純','派生','複合','畳語','接頭','接尾'],
+  register: ['話し言葉','書き言葉','フォーマル','カジュアル'],
+  frequency: ['高頻','中頻','低頻'],
+  dialect: ['関西','東北','九州','沖縄','博多','京都','名古屋'],
+  polarity: ['肯定','否定','中性'],
+};
+const pickEnum = (v, list) => (typeof v === 'string' && list.includes(v.trim())) ? v.trim() : '';
+
+// POS 配色分组（体言=蓝 / 用言=绿 / 修饰=黄 / 其他=灰）
+function posBadgeClass(pos) {
+  if (!pos) return '';
+  if (['名詞','代名詞','数詞'].includes(pos)) return 'pos-badge subst';
+  if (['動詞','形容詞','形容動詞','助動詞'].includes(pos)) return 'pos-badge pred';
+  if (['副詞','連体詞','形容詞'].includes(pos)) return 'pos-badge modif';
+  return 'pos-badge other';
+}
+
 function saveEntry() {
   const kana = document.getElementById('add-kana').value.trim();
   const layer = document.getElementById('add-layer').value;
@@ -1237,17 +1685,41 @@ function saveEntry() {
   const tags = document.getElementById('add-tags').value.trim().split(/\s+/).filter(Boolean).slice(0, 5);
   const kanji = document.getElementById('add-kanji').value.trim();
 
+  // 深度内容
+  const roman = document.getElementById('add-roman').value.trim() || romanizeKana(kana);
+  const pron = document.getElementById('add-pron').value.trim();
+  const etymology = document.getElementById('add-etymology').value.trim();
+  const related = document.getElementById('add-related').value.trim().split(/\s+/).filter(Boolean).slice(0, 10);
+  const examples = document.getElementById('add-examples').value.split(/\n+/).map(s => s.trim()).filter(Boolean).slice(0, 8);
+  const culturalNote = document.getElementById('add-culturalnote').value.trim();
+
+  // 词法特征（带白名单校验）
+  const grammar = {};
+  for (const [key, list] of Object.entries(GRAMMAR_ENUMS)) {
+    grammar[key] = pickEnum(document.getElementById('add-' + key)?.value || '', list);
+  }
+  grammar.baseForm = document.getElementById('add-baseform').value.trim();
+  grammar.okurigana = document.getElementById('add-okurigana').value.trim();
+  grammar.pitchAccent = document.getElementById('add-pitchaccent').value.trim();
+  grammar.mimetic = document.getElementById('add-mimetic').checked;
+
+  const fieldData = {
+    kana, kanji, layer, root, meaning, analysis, tags,
+    roman, pron, etymology, related, examples, culturalNote,
+    ...grammar,
+  };
+
   if (editId) {
     const idx = state.entries.findIndex(e => e.id === editId);
     if (idx >= 0) {
-      state.entries[idx] = { ...state.entries[idx], kana, kanji, layer, root, meaning, analysis, tags };
+      state.entries[idx] = { ...state.entries[idx], ...fieldData };
       state.selectedEntryId = editId;
       toast('已更新');
     }
   } else {
     const newEntry = {
       id: 'user-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
-      kana, kanji, layer, root, meaning, analysis, tags,
+      ...fieldData,
     };
     state.entries.push(newEntry);
     state.selectedEntryId = newEntry.id;
