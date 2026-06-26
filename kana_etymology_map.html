@@ -2041,6 +2041,11 @@ function renderWordsList() {
     const romaji = e.roman || autoRoman(e.kana);
     const pron = getPronDisplay(e.pron);
     const displayName = getEntryDisplayName(e);
+    const meta = [
+      e.pos ? `<span class="${posBadgeClass(e.pos)}">${escapeHtml(e.pos)}</span>` : '',
+      e.yomi ? `<span class="pos-badge other">${escapeHtml(e.yomi)}</span>` : '',
+      e.wordOrigin ? `<span class="pos-badge other">${escapeHtml(e.wordOrigin)}</span>` : '',
+    ].filter(Boolean).join(' ');
     return `
       <div class="word-item ${active}" onclick="selectEntry('${e.id}')">
         <div>
@@ -2049,6 +2054,7 @@ function renderWordsList() {
           ${pron ? `<span class="word-pron">[${escapeHtml(pron)}]</span>` : ''}
         </div>
         <div class="word-meaning">${escapeHtml(e.meaning)}</div>
+        ${meta ? `<div class="word-tags" style="margin-top:2px;">${meta}</div>` : ''}
         ${tags ? `<div class="word-tags">${tags}</div>` : ''}
       </div>
     `;
@@ -2103,7 +2109,7 @@ function renderDetail() {
   const grammarChips = [];
   const grammarLabels = {
     pos:'品詞', conjugation:'活用', transitivity:'自他', keigo:'敬語',
-    politeness:'丁寧度', wordOrigin:'語種', yomi:'音訓', derivation:'派生',
+    politeness:'丁寧度', derivation:'派生',
     register:'語体', frequency:'頻度', dialect:'方言', polarity:'極性',
     pitchAccent:'アクセント',
   };
@@ -2116,7 +2122,17 @@ function renderDetail() {
 
   panel.innerHTML = `
     <div class="detail-content fade-in">
+      <div class="detail-section">
+        <div class="detail-label">所属</div>
+        <div class="detail-badges">
+          <span class="badge badge-layer" style="--layer-color: ${layer?.color || 'var(--accent)'}">${escapeHtml(e.layer)} · ${escapeHtml(layer?.name || '')}</span>
+          <span class="badge">${escapeHtml(root?.kana || e.root)}</span>
+          <span class="badge">${escapeHtml(root?.core || '')}</span>
+        </div>
+      </div>
+
       <div class="detail-word">${escapeHtml(displayName)} ${ttsBtn}${e.pos ? ` <span class="${posBadgeClass(e.pos)}">${escapeHtml(e.pos)}</span>` : ''}</div>
+      ${(e.yomi || e.wordOrigin) ? `<div style="margin:4px 0;display:flex;gap:6px;flex-wrap:wrap;">${e.yomi ? `<span class="pos-badge other">${escapeHtml(e.yomi)}</span>` : ''}${e.wordOrigin ? `<span class="pos-badge other">${escapeHtml(e.wordOrigin)}</span>` : ''}</div>` : ''}
       <div class="detail-kanji">
         ${e.roman ? `<span style="margin-left:10px;color:var(--fg-dim);font-family:monospace;">/${escapeHtml(e.roman)}/</span>` : ''}
         ${pron ? `<span style="margin-left:10px;color:var(--accent2);font-family:monospace;">[${escapeHtml(pron)}]</span>` : ''}
@@ -2137,15 +2153,6 @@ function renderDetail() {
         <div class="detail-label">词法特征</div>
         <div class="grammar-chips">${grammarChips.join('')}</div>
       </div>` : ''}
-
-      <div class="detail-section">
-        <div class="detail-label">所属</div>
-        <div class="detail-badges">
-          <span class="badge badge-layer" style="--layer-color: ${layer?.color || 'var(--accent)'}">${escapeHtml(e.layer)} · ${escapeHtml(layer?.name || '')}</span>
-          <span class="badge">${escapeHtml(root?.kana || e.root)}</span>
-          <span class="badge">${escapeHtml(root?.core || '')}</span>
-        </div>
-      </div>
 
       ${root ? `
       <div class="detail-section">
