@@ -3263,10 +3263,9 @@ function importJSON(event) {
 
 let syncConfig = { token: '', gistId: '', autoSync: true };
 let syncStatus = { lastPushAt: 0, lastPullAt: 0, lastError: '', busy: false };
-let _pushTimer = null, _pullTimer = null, _visibilityBound = false, _rateLimitedUntil = 0;
+let _pushTimer = null, _visibilityBound = false, _rateLimitedUntil = 0;
 let _lastPushedSig = '';
 const GIST_FILE = 'japanese_kana_map.json';
-const PULL_INTERVAL = 30000;   // GitHub gist 写有 secondary rate limit，轮询不宜过频
 const PUSH_DEBOUNCE = 1500;
 
 function loadSyncConfig() {
@@ -3418,15 +3417,14 @@ async function syncNow() {
 function startCloudSync() {
   loadSyncConfig();
   if (!syncReady()) return;
-  pullFromGist();
+  pullFromGist();   // 打开 / 刷新时拉一次
   if (!_visibilityBound) {
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && syncReady()) pullFromGist();
+      if (!document.hidden && syncReady()) pullFromGist();   // 切回 App 时拉一次
     });
     _visibilityBound = true;
   }
-  clearInterval(_pullTimer);
-  _pullTimer = setInterval(() => { if (syncReady()) pullFromGist(); }, PULL_INTERVAL);
+  // 不做定时轮询：只在打开/刷新/切回前台拉取，避免无谓消耗 API 与撞限流
 }
 
 function fmtTime(ts) {
