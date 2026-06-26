@@ -3263,10 +3263,10 @@ function importJSON(event) {
 
 let syncConfig = { token: '', gistId: '', autoSync: true };
 let syncStatus = { lastPushAt: 0, lastPullAt: 0, lastError: '', busy: false };
-let _pushTimer = null, _pullTimer = null, _visibilityBound = false;
+let _pushTimer = null, _pullTimer = null, _visibilityBound = false, _rateLimitedUntil = 0;
 let _lastPushedSig = '';
 const GIST_FILE = 'japanese_kana_map.json';
-const PULL_INTERVAL = 8000;
+const PULL_INTERVAL = 30000;   // GitHub gist 写有 secondary rate limit，轮询不宜过频
 const PUSH_DEBOUNCE = 1500;
 
 function loadSyncConfig() {
@@ -3313,6 +3313,7 @@ function mergeState(local, remote) {
 
 async function pushToGist() {
   if (!syncReady() || syncStatus.busy) return;
+  if (Date.now() < _rateLimitedUntil) return;   // 限流冷却中，跳过
   const sig = payloadSig(buildPayload());
   if (sig === _lastPushedSig) return;                 // 内容未变，跳过（防环）
   syncStatus.busy = true;
@@ -3328,6 +3329,10 @@ async function pushToGist() {
     syncStatus.lastError = '';
   } catch (e) {
     syncStatus.lastError = '上传失败：' + e.message;
+    if (/403|rate limit/i.test(e.message)) {
+      _rateLimitedUntil = Date.now() + 5 * 60 * 1000;   // 撞限流 → 冷却 5 分钟
+      syncStatus.lastError = 'GitHub 限流，5 分钟后自动重试';
+    }
   } finally {
     syncStatus.busy = false;
     updateSyncStatusUI();
@@ -3336,6 +3341,7 @@ async function pushToGist() {
 
 async function pullFromGist() {
   if (!syncReady() || syncStatus.busy) return;
+  if (Date.now() < _rateLimitedUntil) return;   // 限流冷却中，跳过（也省 API）
   syncStatus.busy = true;
   try {
     const res = await fetch(`https://api.github.com/gists/${syncConfig.gistId}`, {
