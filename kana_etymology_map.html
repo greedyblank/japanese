@@ -3390,9 +3390,11 @@ async function createGist() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     syncConfig.gistId = data.id;
+    const gidEl = document.getElementById('sync-gistid');
+    if (gidEl) gidEl.value = data.id;        // 回填输入框（原先漏了，UI 看不到 id）
     saveSyncConfig();
     _lastPushedSig = payloadSig(buildPayload());
-    toast('已创建私有 Gist', 'success');
+    toast('已创建私有 Gist：' + data.id, 'success');
     updateSyncStatusUI();
     startCloudSync();
   } catch (e) {
