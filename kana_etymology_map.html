@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>日语音义体系地图 · 仮名語源地図</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0e1a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="仮名地図">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <script src="kana_phonetic_symbolism.js"></script>
 <style>
 /* ============================== Theme ============================== */
@@ -48,19 +56,54 @@ input, textarea, select { font: inherit; }
 }
 /* ============================== Header ============================== */
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
   background: var(--bg-soft);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 14px 18px;
+  padding: 8px 14px;
   margin-bottom: 14px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
 }
-.header-left { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.header h1 { font-size: 18px; }
+.header-left { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.header h1 { font-size: 17px; }
+#header-toggle-btn {
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+#header-toggle-btn:hover { background: rgba(255,255,255,0.1); color: var(--fg); }
+#header-toggle-icon { transition: transform 0.28s ease; display: inline-block; }
+.header-collapsed #header-toggle-icon { transform: rotate(180deg); }
+#header-collapsible { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-left: auto; }
+/* 可折叠区块：默认展开，.header-collapsed 时高度归零（用于 stats/actions/search） */
+.header-collapsible {
+  max-height: 200px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease, margin 0.28s ease, padding 0.28s ease;
+}
+.header-collapsed .header-collapsible {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-width: 0 !important;
+  pointer-events: none;
+}
 .header .subtitle { font-size: 12px; color: var(--fg-muted); }
 .header-stats { display: flex; gap: 14px; font-size: 12px; color: var(--fg-muted); }
 .header-stats span b { color: var(--accent2); font-size: 14px; }
@@ -166,6 +209,9 @@ input, textarea, select { font: inherit; }
   font-size: 10px;
   color: var(--fg-dim);
   line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .layer-btn .layer-count {
   position: absolute;
@@ -180,7 +226,7 @@ input, textarea, select { font: inherit; }
 /* ============================== 3-pane View ============================== */
 .main-view {
   display: grid;
-  grid-template-columns: 0.85fr 1fr 1.65fr;
+  grid-template-columns: 0.7fr 0.9fr 2fr;
   gap: 14px;
   min-height: 600px;
 }
@@ -330,19 +376,7 @@ input, textarea, select { font: inherit; }
   letter-spacing: 0.06em;
   margin-bottom: 10px;
 }
-.tag-cloud-items { display: flex; flex-wrap: wrap; gap: 6px; }
-.tag-cloud-pill {
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: 12px;
-  background: rgba(56,189,248,0.08);
-  color: var(--accent);
-  border: 1px solid rgba(56,189,248,0.2);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.tag-cloud-pill:hover { background: rgba(56,189,248,0.18); }
-.tag-cloud-pill.active { background: var(--accent); color: var(--bg); }
+/* (旧版 pill 标签云 CSS 已移除：.tag-cloud-items / .tag-cloud-pill，现用 .tag-card-grid / .tag-card) */
 
 /* ============================== Modal ============================== */
 .modal-backdrop {
@@ -776,32 +810,38 @@ input, textarea, select { font: inherit; }
 <body>
 
 <!-- ============================== Header ============================== -->
-<header class="header">
+<header id="app-header" class="header">
+  <button id="header-toggle-btn" onclick="toggleHeaderCompact()" title="折叠/展开 (下滑自动折叠)">
+    <span id="header-toggle-icon">⌃</span>
+  </button>
   <div class="header-left">
     <h1 class="gradient-text">日语音义体系地图</h1>
     <span class="subtitle">仮名語源地図 · Kana Etymology Map</span>
   </div>
-  <div class="header-stats">
-    <span>层 <b id="stat-layers">0</b></span>
-    <span>音根 <b id="stat-roots">0</b></span>
-    <span>词条 <b id="stat-entries">0</b></span>
-    <span class="file-sync-indicator" id="file-sync-indicator" style="display:none;"></span>
-  </div>
-  <div class="header-actions">
-    <button class="btn btn-ai" id="ai-add-btn" onclick="openAIAddModal()">✨ AI 新词条</button>
-    <button class="btn btn-ai disabled" id="ai-btn" onclick="openAIModal()" title="点击配置 API Key 后使用">✨ AI 补全</button>
-    <button class="btn btn-gear" onclick="openSettingsModal()" title="LLM 设置">⚙️</button>
-    <button class="btn" onclick="openPromptModal()">📚 Prompt</button>
-    <button class="btn" onclick="exportJSON()" title="导出 JSON">⬇ 导出</button>
-    <label class="btn" title="导入 JSON" style="cursor:pointer;">⬆ 导入<input type="file" accept=".json,application/json" onchange="importJSON(event)" style="display:none;"></label>
-    <button class="btn" onclick="openBulkPaste()">📥 批量</button>
-    <button class="btn btn-primary" onclick="openAddModal()">+ 添加</button>
-    <button class="btn" onclick="resetData()">↺ 重置</button>
+  <div id="header-collapsible" class="header-collapsible">
+    <div class="header-stats">
+      <span>层 <b id="stat-layers">0</b></span>
+      <span>音根 <b id="stat-roots">0</b></span>
+      <span>词条 <b id="stat-entries">0</b></span>
+      <span class="file-sync-indicator" id="file-sync-indicator" style="display:none;"></span>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ai" id="ai-add-btn" onclick="openAIAddModal()">✨ AI 新词条</button>
+      <button class="btn btn-ai disabled" id="ai-btn" onclick="openAIModal()" title="点击配置 API Key 后使用">✨ AI 补全</button>
+      <button class="btn btn-gear" onclick="openSettingsModal()" title="LLM 设置">⚙️</button>
+      <button class="btn btn-gear" onclick="openSyncModal()" title="多端同步">☁️</button>
+      <button class="btn" onclick="openPromptModal()">📚 Prompt</button>
+      <button class="btn" onclick="exportJSON()" title="导出 JSON">⬇ 导出</button>
+      <label class="btn" title="导入 JSON" style="cursor:pointer;">⬆ 导入<input type="file" accept=".json,application/json" onchange="importJSON(event)" style="display:none;"></label>
+      <button class="btn" onclick="openBulkPaste()">📥 批量</button>
+      <button class="btn btn-primary" onclick="openAddModal()">+ 添加</button>
+      <button class="btn" onclick="resetData()">↺ 重置</button>
+    </div>
   </div>
 </header>
 
 <!-- ============================== Search ============================== -->
-<div class="search-bar">
+<div class="search-bar header-collapsible">
   <span style="color: var(--fg-muted); font-size: 13px;">🔍</span>
   <input id="search-input" type="text" placeholder="搜索假名 / 汉字 / 释义 / 标签..." oninput="onSearchInput(this.value)">
   <span id="search-clear" style="color: var(--fg-dim); cursor: pointer; display: none;" onclick="clearSearch()">✕</span>
@@ -1319,6 +1359,55 @@ input, textarea, select { font: inherit; }
   </div>
 </div>
 
+<!-- ============================== 多端同步 Modal ============================== -->
+<div class="modal-backdrop" id="sync-modal">
+  <div class="modal settings-modal">
+    <h3>☁️ 多端同步（GitHub Gist）</h3>
+
+    <div class="info-box blue">
+      数据通过你自己的<strong>私有 Gist</strong> 在多端同步：电脑加词，手机秒级可见。Token 仅存于本机 localStorage。
+    </div>
+
+    <div class="modal-row">
+      <label>GitHub Token <a href="https://github.com/settings/tokens/new?scopes=gist&description=Japanese-Kana-Map" target="_blank" style="margin-left:8px;font-size:11px;text-transform:none;">→ 生成 token</a></label>
+      <div class="api-key-row">
+        <input id="sync-token" type="password" placeholder="ghp_xxxx（只需 gist 权限）">
+        <button class="api-key-vis-btn" onclick="var t=document.getElementById('sync-token');t.type=t.type==='password'?'text':'password'">显示</button>
+      </div>
+    </div>
+
+    <div class="modal-row">
+      <label>Gist ID</label>
+      <input id="sync-gistid" type="text" placeholder="留空 → 点下方「自动创建」">
+      <p class="field-hint">已有 Gist 粘贴 URL 末尾 id；否则点「自动创建」由本工具新建私有 Gist。</p>
+    </div>
+
+    <div class="info-box">
+      <label class="info-toggle">
+        <input type="checkbox" id="sync-auto" checked>
+        <div>
+          <strong>自动同步</strong>
+          <div style="color: var(--fg-muted); margin-top: 4px;">改动后自动上传 + 每 8 秒 / 切回前台时拉取合并。</div>
+        </div>
+      </label>
+    </div>
+
+    <div class="info-box amber">
+      ⚠️ <strong>Token 安全</strong>：仅存本机 localStorage，不外发任何第三方。公共电脑勿保存；泄露后到 GitHub 删除该 token。
+    </div>
+
+    <div class="settings-actions">
+      <button class="btn" onclick="createGist()">✨ 自动创建 Gist</button>
+      <div class="right-group">
+        <span id="sync-status" style="font-size:11px;color:var(--fg-muted);margin-right:8px;">未配置</span>
+        <button class="btn" onclick="syncNow()">🔄 立即同步</button>
+        <button class="btn" onclick="closeSyncModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveSyncSettings()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ============================== Toast ============================== -->
 <div class="toast" id="toast"></div>
 
@@ -1328,10 +1417,15 @@ input, textarea, select { font: inherit; }
 // =========================================================================
 const STORAGE_KEY = 'japanese_kana_map_v1';
 const TAGGRAPH_KEY = 'japanese_kana_taggraph_v1';
+const TOMBSTONES_KEY = 'japanese_kana_tombstones_v1';   // 已删除词条的墓碑（跨端同步「删除」用）
+const SYNC_KEY = 'japanese_kana_sync_v1';               // Gist 同步配置
+const META_KEY = 'japanese_kana_meta_v1';               // 同步元数据（tagGraphUpdatedAt 等）
 
 let state = {
   entries: [],            // 用户词条（含导入的默认数据）
   tagGraph: {},           // 标签层级图 {tagId: {parent, aliases[], related[]}}
+  tombstones: [],         // 已删词条墓碑 [{id, deletedAt}]，用于跨端同步「删除」
+  tagGraphUpdatedAt: 0,   // tagGraph 整体时间戳（多端 last-write-wins 用）
   filter: {
     layer: null,          // 选中的层 id (A-R)，null = 全部
     root: null,           // 选中的音根 key，null = 全部
@@ -1341,6 +1435,48 @@ let state = {
   selectedEntryId: null,
   editingEntryId: null,
 };
+
+// =========================================================================
+// HEADER 折叠（仿韩语：手动 toggle + 下滑自动折叠 + 回顶/触达自动展开）
+// =========================================================================
+let _headerCompact = false;
+let _headerManual = false;
+let _lastScrollY = window.scrollY;
+let _manualResetTimer = null;
+
+function setHeaderCompact(compact) {
+  if (_headerCompact === compact) return;
+  _headerCompact = compact;
+  document.body.classList.toggle('header-collapsed', compact);
+}
+
+function toggleHeaderCompact() {
+  setHeaderCompact(!_headerCompact);
+  _headerManual = true;
+  clearTimeout(_manualResetTimer);
+  _manualResetTimer = setTimeout(() => { _headerManual = false; }, 8000);
+}
+
+// 快捷键触达 header 功能时，若已折叠则先展开
+function expandHeaderIfCollapsed() {
+  if (_headerCompact) {
+    setHeaderCompact(false);
+    _headerManual = true;
+    clearTimeout(_manualResetTimer);
+    _manualResetTimer = setTimeout(() => { _headerManual = false; }, 8000);
+  }
+}
+
+window.addEventListener('scroll', () => {
+  const y = window.scrollY;
+  const dy = y - _lastScrollY;
+  if (y < 8) {
+    if (!_headerManual) setHeaderCompact(false);
+  } else if (dy > 8 && y > 80) {
+    if (!_headerManual) setHeaderCompact(true);
+  }
+  _lastScrollY = y;
+}, { passive: true });
 
 // =========================================================================
 // INIT
@@ -1360,6 +1496,12 @@ function init() {
     }
   }
   if (migrateDefaultKanaReadings()) saveToStorage();
+  if (migrateLegacyTagsToGrammar()) saveToStorage();
+  // tagGraph 为空时注入默认三层结构（12 桶 → 子类 → 词条）
+  if (!state.tagGraph || Object.keys(state.tagGraph).length === 0) {
+    state.tagGraph = buildDefaultTagGraph();
+    saveToStorage();
+  }
   renderLayerGrid();
   renderTagCloud();
   renderRootsList();
@@ -1369,6 +1511,7 @@ function init() {
   populateLayerSelect();
   updateAIButton();
   restoreFileSync();
+  startCloudSync();   // Gist 多端同步：启动即拉取 + 前台切换 / 8s 轮询
   // 同步排序按钮初始状态
   document.querySelectorAll('.sort-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.sort === sortMode);
@@ -1380,11 +1523,31 @@ function init() {
 // =========================================================================
 // PERSISTENCE
 // =========================================================================
+let lastTagGraphSig = '';   // 检测 tagGraph 是否真变化（决定是否盖时间戳）
+
+function saveMetaToStorage() {
+  localStorage.setItem(META_KEY, JSON.stringify({ tagGraphUpdatedAt: state.tagGraphUpdatedAt || 0 }));
+}
+function loadMetaFromStorage() {
+  try {
+    const raw = localStorage.getItem(META_KEY);
+    if (raw) state.tagGraphUpdatedAt = JSON.parse(raw).tagGraphUpdatedAt || 0;
+  } catch { /* ignore */ }
+}
 function saveToStorage() {
   try {
+    // tagGraph 内容真变化时才盖时间戳（避免 entry 改动虚高 tagGraph 时钟，覆盖他端的 tag 编辑）
+    const tgSig = JSON.stringify(state.tagGraph || {});
+    if (tgSig !== lastTagGraphSig) {
+      state.tagGraphUpdatedAt = Date.now();
+      lastTagGraphSig = tgSig;
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
     localStorage.setItem(TAGGRAPH_KEY, JSON.stringify(state.tagGraph || {}));
+    localStorage.setItem(TOMBSTONES_KEY, JSON.stringify(state.tombstones || []));
+    saveMetaToStorage();
     if (fileSyncState.handle) syncToFileDebounced();
+    scheduleCloudSync();   // Gist 多端同步（debounce；未配置 token 时为空操作）
   } catch (e) {
     toast('保存失败：' + e.message, 'error');
   }
@@ -1395,9 +1558,15 @@ function loadFromStorage() {
     if (raw) state.entries = JSON.parse(raw);
     const tg = localStorage.getItem(TAGGRAPH_KEY);
     if (tg) state.tagGraph = JSON.parse(tg);
+    const tb = localStorage.getItem(TOMBSTONES_KEY);
+    if (tb) state.tombstones = JSON.parse(tb);
+    loadMetaFromStorage();
+    lastTagGraphSig = JSON.stringify(state.tagGraph || {});
   } catch (e) {
     state.entries = [];
     state.tagGraph = {};
+    state.tombstones = [];
+    lastTagGraphSig = '';
   }
 }
 
@@ -1410,6 +1579,65 @@ function migrateDefaultKanaReadings() {
     if (source && entry.kana === entry.kanji && source.kana && source.kana !== source.kanji) {
       entry.kana = source.kana;
       changed = true;
+    }
+  });
+  return changed;
+}
+
+// 旧版词性/活用 tag → pos/conjugation/wordOrigin 迁移（spec: 词性不入 tags）
+// 种子词条(default-N)：若 tags 仍是旧格式（含词性），用最新种子分类同步；
+// 用户新增词条：把词性/活用 tag 迁到 grammar 字段，语义 tag 保留。
+const LEGACY_TAG_SET = new Set([
+  '名词','动词','形容词','形容动词','代词','副词','助词','助动词','连体词','接续词','感动词',
+  '一段','五段','二段','力変','サ変','外来语','拟态词','拟声词',
+]);
+const POS_MIGRATION = {
+  '名词':'名詞','动词':'動詞','形容词':'形容詞','形容动词':'形容動詞',
+  '代词':'代名詞','副词':'副詞','助词':'助詞','助动词':'助動詞',
+  '连体词':'連体詞','接续词':'接続詞','感动词':'感動詞',
+};
+// 一段动词按る前假名判定上一段(イ段)/下一段(エ段)
+function detectIchidanType(kana) {
+  const ru = (kana || '').lastIndexOf('る');
+  if (ru < 1) return null;
+  const prev = kana[ru - 1];
+  if ('きしちにひみいりぎじびぴ'.includes(prev)) return '上一段';
+  if ('けせてねへめえれげぜでべぺ'.includes(prev)) return '下一段';
+  return null;
+}
+function migrateLegacyTagsToGrammar() {
+  const defaults = window.KANA_DATA?.ENTRIES || [];
+  let changed = false;
+  state.entries.forEach(entry => {
+    const match = /^default-(\d+)$/.exec(entry.id || '');
+    const source = match && defaults[Number(match[1])];
+    if (source) {
+      // 种子词条：旧格式（含词性 tag）则用最新种子分类同步 tags/pos/conjugation/wordOrigin
+      const isLegacy = (entry.tags || []).some(t => LEGACY_TAG_SET.has(t));
+      if (isLegacy) {
+        entry.tags = [...source.tags];
+        if (source.pos) entry.pos = source.pos;
+        if (source.conjugation) entry.conjugation = source.conjugation;
+        if (source.wordOrigin) entry.wordOrigin = source.wordOrigin;
+        changed = true;
+      }
+    } else {
+      // 用户新增词条：词性/活用/语种 tag 迁到 grammar 字段，语义 tag 保留
+      if (!entry.tags || entry.tags.length === 0) return;
+      const keep = [];
+      const g = {};
+      entry.tags.forEach(tag => {
+        if (POS_MIGRATION[tag]) { if (!g.pos) g.pos = POS_MIGRATION[tag]; }
+        else if (tag === '五段') { if (!g.conjugation) g.conjugation = '五段'; }
+        else if (tag === '一段') { const t = detectIchidanType(entry.kana); if (t && !g.conjugation) g.conjugation = t; }
+        else if (tag === '力変') { if (!g.conjugation) g.conjugation = 'カ行変格'; }
+        else if (tag === 'サ変') { if (!g.conjugation) g.conjugation = 'サ行変格'; }
+        else if (tag === '外来语') { if (!g.wordOrigin) g.wordOrigin = '外来語'; }
+        else if (tag === '拟态词') { if (!g.wordOrigin) g.wordOrigin = '擬態語'; }
+        else if (tag === '拟声词') { if (!g.wordOrigin) g.wordOrigin = '擬音語'; }
+        else keep.push(tag);
+      });
+      if (Object.keys(g).length > 0) { Object.assign(entry, g); entry.tags = keep; changed = true; }
     }
   });
   return changed;
@@ -1677,11 +1905,11 @@ function renderLayerGrid() {
     return `
       <button class="layer-btn ${active}" style="--layer-color: ${l.color}"
               onclick="selectLayer('${l.id}')"
-              title="${l.id} · ${l.name}（${rootsInLayer.length} 音根）">
+              title="${l.id} · ${l.name}（${rootsInLayer.length} 音根 · ${count} 词条）— ${l.desc}">
         <span class="layer-id">${getLayerEmoji(l.id)}</span>
         <span class="layer-name">${l.name}</span>
         <span class="layer-count">${count}</span>
-        <span class="layer-desc">${kanas}<br><span style="opacity:0.6;">${rootsInLayer.length} 音根 · ${l.desc}</span></span>
+        <span class="layer-desc">${kanas}</span>
       </button>
     `;
   }).join('');
@@ -1963,9 +2191,12 @@ function renderDetail() {
 
       ${(e.tags && e.tags.length) ? `
       <div class="detail-section">
-        <div class="detail-label">标签</div>
+        <div class="detail-label">语义标签</div>
         <div class="detail-badges">
-          ${e.tags.map(t => `<span class="tag-pill" onclick="onTagClick('${escapeHtml(t).replace(/'/g,"\\'")}', event)">${escapeHtml(t)}</span>`).join('')}
+          ${e.tags.map(t => {
+            const chain = getTagChain(t) || [t];
+            return chain.map(c => `<span class="tag-pill" onclick="onTagClick('${escapeHtml(c).replace(/'/g,"\\'")}', event)">${escapeHtml(c)}</span>`).join('<span style="color:var(--fg-dim);margin:0 3px;">›</span>');
+          }).join(' ')}
         </div>
       </div>` : ''}
     </div>
@@ -2010,6 +2241,11 @@ function renderTagCloud() {
     const top4 = children.map(c => ({ name: c, count: getTagWordsCumulative(c).length })).sort((a,b)=>b.count-a.count).slice(0,4);
     const isSelected = tagCloudState.selectedTag === root;
     const extra = children.length - top4.length;
+    // 兜底：无子类时显示前 4 个直接词条名（桶下直接挂词条 / orphan 标签）
+    const fallbackKids = top4.length > 0 ? [] : getTagWords(root).slice(0,4).map(w => w.kana || w.kanji || '');
+    const kidsHtml = top4.length > 0
+      ? top4.map(c => `<span class="tag-card-kid">${escapeHtml(c.name)} <b>·${c.count}</b></span>`).join('<span class="tag-card-kid"> · </span>')
+      : (fallbackKids.length > 0 ? fallbackKids.map(k => `<span class="tag-card-kid">${escapeHtml(k)}</span>`).join('<span class="tag-card-kid"> · </span>') : '<span class="tag-card-kid" style="font-style:italic;">无子标签</span>');
     return `
       <div class="tag-card ${isSelected ? 'selected' : ''}" onclick="toggleTagCloudRoot('${escapeHtml(root).replace(/'/g,"\\'")}', event)">
         <div class="tag-card-head">
@@ -2017,7 +2253,7 @@ function renderTagCloud() {
           <span class="tag-card-count">${totalCount}</span>
         </div>
         <div class="tag-card-kids">
-          ${top4.length > 0 ? top4.map(c => `<span class="tag-card-kid">${escapeHtml(c.name)} <b>·${c.count}</b></span>`).join('<span class="tag-card-kid"> · </span>') : '<span class="tag-card-kid" style="font-style:italic;">无子标签</span>'}
+          ${kidsHtml}
           ${extra > 0 ? `<span class="tag-card-more">+${extra}</span>` : ''}
         </div>
       </div>
@@ -2028,6 +2264,7 @@ function renderTagCloud() {
   const expandedCardHtml = (root) => {
     const totalCount = getTagWordsCumulative(root).length;
     const children = getTagChildren(root);
+    const fallbackWords = children.length === 0 ? getTagWords(root) : [];
     const renderNode = (tag, depth) => {
       const kids = getTagChildren(tag);
       const hasKids = kids.length > 0;
@@ -2047,7 +2284,7 @@ function renderTagCloud() {
           <span class="tag-card-count">累计 ${totalCount} 词条</span>
         </div>
         <div class="tag-card-subtree">
-          ${children.length > 0 ? children.map(c => renderNode(c, 0)).join('') : '<span style="font-style:italic;color:var(--fg-dim);font-size:11px;">该根暂无子标签</span>'}
+          ${children.length > 0 ? children.map(c => renderNode(c, 0)).join('') : (fallbackWords.length > 0 ? `<div class="tag-detail-grid">${fallbackWords.map(e => `<div class="tag-detail-word" onclick="selectEntryAndScroll('${e.id}')"><span class="kw">${escapeHtml(e.kana)}</span><div class="mm">${escapeHtml((e.meaning||'').split(/[;；?？]/)[0])}</div></div>`).join('')}</div>` : '<span style="font-style:italic;color:var(--fg-dim);font-size:11px;">该根暂无子标签</span>')}
         </div>
       </div>
     `;
@@ -2346,11 +2583,32 @@ function addWordToTag(tag) {
 // AI TAG RESTRUCTURE（分類語彙表 12 根 + 仅补漏）
 // =========================================================================
 // 国立国語研究所「分類語彙表」的 4 类及其有效部門组合
-const TAG_TAXONOMY_ROOTS = [
-  '体・関係', '体・主体', '体・活動', '体・生産物', '体・自然',
-  '用・関係', '用・活動', '用・自然',
-  '相・関係', '相・活動', '相・自然', 'その他',
-];
+// 三层语义分类：桶 → 子类 → 词条（子类即 entry.tags 的值，桶由 tagGraph 的 parent 链推导）
+const TAG_TAXONOMY = {
+  '体・関係':   ['時間·暦', '空間·場所', '抽象関係'],
+  '体・主体':   ['人·家族', '身体·健康', '社会·組織'],
+  '体・活動':   ['心理·精神'],
+  '体・生産物': ['飲食物', '衣·住·道具', '交通·機械', '文化·芸術'],
+  '体・自然':   ['天象·気象', '地形·場所', '動植物', '物質·元素'],
+  '用・関係':   ['授受·交換', '存在·関係', '思考·判断'],
+  '用・活動':   ['移動·動作', '飲食·摂取', '知覚·感知', '作業·操作', '交流·伝達', '状態·維持'],
+  '用・自然':   ['変化·発生', '自然作用'],
+  '相・関係':   ['数量·程度'],
+  '相・活動':   ['感情·情緒', '評価·価値'],
+  '相・自然':   ['状態·性質', '形状·色彩', '感覚·印象'],
+  'その他':     ['擬音語', '擬態語', '文法要素'],
+};
+const TAG_TAXONOMY_ROOTS = Object.keys(TAG_TAXONOMY);
+
+// 由 TAG_TAXONOMY 构建默认 tagGraph：桶为根（parent:null），子类 parent 指向桶
+function buildDefaultTagGraph() {
+  const g = {};
+  Object.entries(TAG_TAXONOMY).forEach(([bucket, subs]) => {
+    if (!g[bucket]) g[bucket] = { parent: null, aliases: [], related: [] };
+    subs.forEach(sub => { g[sub] = { parent: bucket, aliases: [], related: [] }; });
+  });
+  return g;
+}
 
 function routeTagByKeyword(tag) {
   const t = tag.toLowerCase();
@@ -2789,13 +3047,15 @@ function saveEntry() {
   if (editId) {
     const idx = state.entries.findIndex(e => e.id === editId);
     if (idx >= 0) {
-      state.entries[idx] = { ...state.entries[idx], ...fieldData };
+      state.entries[idx] = { ...state.entries[idx], ...fieldData, updatedAt: Date.now() };
       state.selectedEntryId = editId;
       toast('已更新');
     }
   } else {
+    const now = Date.now();
     const newEntry = {
-      id: 'user-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      id: 'user-' + now + '-' + Math.random().toString(36).slice(2, 6),
+      updatedAt: now,
       ...fieldData,
     };
     state.entries.push(newEntry);
@@ -2820,7 +3080,10 @@ function editCurrent() {
 function deleteCurrent() {
   if (!state.selectedEntryId) return;
   if (!confirm('确认删除？此操作不可撤销。')) return;
-  state.entries = state.entries.filter(e => e.id !== state.selectedEntryId);
+  const id = state.selectedEntryId;
+  state.entries = state.entries.filter(e => e.id !== id);
+  // 记入墓碑，使「删除」可跨端同步（合并时按 deletedAt 裁决）
+  state.tombstones = [...(state.tombstones || []), { id, deletedAt: Date.now() }];
   state.selectedEntryId = null;
   saveToStorage();
   renderLayerGrid();
@@ -2860,6 +3123,7 @@ function bulkImport() {
     const tags = (tagsStr || '').split(/\s+/).filter(Boolean).slice(0, 5);
     state.entries.push({
       id: 'bulk-' + Date.now() + '-' + idx,
+      updatedAt: Date.now(),
       kana, kanji: kanji || kana, layer, root, meaning, analysis, tags,
     });
     added++;
@@ -2928,6 +3192,8 @@ function exportJSON() {
     count: state.entries.length,
     entries: state.entries,
     tagGraph: state.tagGraph || {},
+    tombstones: state.tombstones || [],
+    tagGraphUpdatedAt: state.tagGraphUpdatedAt || 0,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -2961,6 +3227,16 @@ function importJSON(event) {
       if (data.tagGraph && typeof data.tagGraph === 'object') {
         state.tagGraph = { ...(state.tagGraph || {}), ...data.tagGraph };
       }
+      // 合并墓碑（按 id 去重，保留较新的 deletedAt）
+      if (Array.isArray(data.tombstones)) {
+        const map = new Map((state.tombstones || []).map(t => [t.id, t]));
+        for (const t of data.tombstones) {
+          if (!t || !t.id) continue;
+          const old = map.get(t.id);
+          if (!old || (t.deletedAt || 0) > (old.deletedAt || 0)) map.set(t.id, t);
+        }
+        state.tombstones = [...map.values()];
+      }
       saveToStorage();
       renderLayerGrid();
       renderRootsList();
@@ -2974,6 +3250,212 @@ function importJSON(event) {
     event.target.value = '';
   };
   reader.readAsText(file);
+}
+
+// =========================================================================
+// CLOUD SYNC（GitHub Gist · 多端即时同步）
+// =========================================================================
+// 原理：本地改动 → debounce 上传全量快照到私有 Gist；
+//      启动 / 切回前台 / 8s 轮询 → 拉取 → mergeState 合并。
+// 合并：entries 按 id 并集、updatedAt 大者胜；tombstones 同理裁决「删除」；
+//      tagGraph 整体 last-write-wins（tagGraphUpdatedAt）。
+// 防环：payload 内容签名比对，未变则跳过上传/合并。
+
+let syncConfig = { token: '', gistId: '', autoSync: true };
+let syncStatus = { lastPushAt: 0, lastPullAt: 0, lastError: '', busy: false };
+let _pushTimer = null, _pullTimer = null, _visibilityBound = false;
+let _lastPushedSig = '';
+const GIST_FILE = 'japanese_kana_map.json';
+const PULL_INTERVAL = 8000;
+const PUSH_DEBOUNCE = 1500;
+
+function loadSyncConfig() {
+  try { const raw = localStorage.getItem(SYNC_KEY); if (raw) syncConfig = { ...syncConfig, ...JSON.parse(raw) }; }
+  catch { /* ignore */ }
+}
+function saveSyncConfig() { localStorage.setItem(SYNC_KEY, JSON.stringify(syncConfig)); }
+function syncReady() { return !!(syncConfig.token && syncConfig.gistId); }
+
+function buildPayload() {
+  return {
+    version: 3,
+    entries: state.entries || [],
+    tagGraph: state.tagGraph || {},
+    tombstones: state.tombstones || [],
+    tagGraphUpdatedAt: state.tagGraphUpdatedAt || 0,
+  };
+}
+const payloadSig = (p) => JSON.stringify(p);
+
+// 合并本地与远端快照（纯函数，便于单测）
+function mergeState(local, remote) {
+  const byId = new Map((local.entries || []).map(e => [e.id, e]));
+  for (const r of (remote.entries || [])) {
+    if (!r || !r.id) continue;
+    const l = byId.get(r.id);
+    if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) byId.set(r.id, r);
+  }
+  const tomMap = new Map((local.tombstones || []).map(t => [t.id, t]));
+  for (const t of (remote.tombstones || [])) {
+    if (!t || !t.id) continue;
+    const old = tomMap.get(t.id);
+    if (!old || (t.deletedAt || 0) > (old.deletedAt || 0)) tomMap.set(t.id, t);
+  }
+  // 应用墓碑：删除时间 ≥ 最后更新 → 移除该词条
+  const entries = [...byId.values()].filter(e => {
+    const tp = tomMap.get(e.id);
+    return !(tp && (tp.deletedAt || 0) >= (e.updatedAt || 0));
+  });
+  const ltg = local.tagGraphUpdatedAt || 0, rtg = remote.tagGraphUpdatedAt || 0;
+  const tagGraph = rtg > ltg ? (remote.tagGraph || {}) : (local.tagGraph || {});
+  return { entries, tombstones: [...tomMap.values()], tagGraph, tagGraphUpdatedAt: Math.max(ltg, rtg) };
+}
+
+async function pushToGist() {
+  if (!syncReady() || syncStatus.busy) return;
+  const sig = payloadSig(buildPayload());
+  if (sig === _lastPushedSig) return;                 // 内容未变，跳过（防环）
+  syncStatus.busy = true;
+  try {
+    const res = await fetch(`https://api.github.com/gists/${syncConfig.gistId}`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${syncConfig.token}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: 'Japanese Kana Map (auto-synced)', files: { [GIST_FILE]: { content: sig } } }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    _lastPushedSig = sig;
+    syncStatus.lastPushAt = Date.now();
+    syncStatus.lastError = '';
+  } catch (e) {
+    syncStatus.lastError = '上传失败：' + e.message;
+  } finally {
+    syncStatus.busy = false;
+    updateSyncStatusUI();
+  }
+}
+
+async function pullFromGist() {
+  if (!syncReady() || syncStatus.busy) return;
+  syncStatus.busy = true;
+  try {
+    const res = await fetch(`https://api.github.com/gists/${syncConfig.gistId}`, {
+      headers: { 'Authorization': `Bearer ${syncConfig.token}`, 'Accept': 'application/vnd.github+json' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const raw = data.files?.[GIST_FILE]?.content;
+    syncStatus.lastPullAt = Date.now();
+    if (!raw) { syncStatus.lastError = ''; updateSyncStatusUI(); return; }   // 空 gist，等首次 push
+    const remote = JSON.parse(raw);
+    const before = payloadSig(buildPayload());
+    const merged = mergeState(buildPayload(), remote);
+    const after = payloadSig(merged);
+    if (after === before) { syncStatus.lastError = ''; updateSyncStatusUI(); return; }  // 本地已是最新
+    state.entries = merged.entries;
+    state.tombstones = merged.tombstones;
+    state.tagGraph = merged.tagGraph;
+    state.tagGraphUpdatedAt = merged.tagGraphUpdatedAt;
+    lastTagGraphSig = JSON.stringify(state.tagGraph || {});
+    _lastPushedSig = after;                            // 阻止随后 saveToStorage 触发的重复上传
+    saveToStorage();                                   // 存盘（push 因 sig 相同会跳过）
+    renderLayerGrid(); renderRootsList(); renderWordsList(); renderDetail(); renderTagCloud();
+    updateStats();
+    syncStatus.lastError = '';
+    updateSyncStatusUI();
+    toast('已同步云端数据', 'success');
+  } catch (e) {
+    syncStatus.lastError = '拉取失败：' + e.message;
+    updateSyncStatusUI();
+  } finally {
+    syncStatus.busy = false;
+  }
+}
+
+function scheduleCloudSync() {
+  if (!syncConfig.autoSync || !syncReady()) return;
+  clearTimeout(_pushTimer);
+  _pushTimer = setTimeout(pushToGist, PUSH_DEBOUNCE);
+}
+
+async function createGist() {
+  const tokEl = document.getElementById('sync-token');
+  if (tokEl) syncConfig.token = tokEl.value.trim();   // 允许未保存即创建
+  if (!syncConfig.token) { toast('请先填写 GitHub Token', 'error'); return; }
+  try {
+    const res = await fetch('https://api.github.com/gists', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${syncConfig.token}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: 'Japanese Kana Map (auto-synced)', public: false, files: { [GIST_FILE]: { content: payloadSig(buildPayload()) } } }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    syncConfig.gistId = data.id;
+    saveSyncConfig();
+    _lastPushedSig = payloadSig(buildPayload());
+    toast('已创建私有 Gist', 'success');
+    updateSyncStatusUI();
+    startCloudSync();
+  } catch (e) {
+    toast('创建失败：' + e.message + '（确认 token 勾选了 gist 权限）', 'error');
+  }
+}
+
+async function syncNow() {
+  if (!syncReady()) { toast('请先填写 Token 和 Gist ID', 'error'); return; }
+  toast('同步中…');
+  await pullFromGist();
+  await pushToGist();
+}
+
+function startCloudSync() {
+  loadSyncConfig();
+  if (!syncReady()) return;
+  pullFromGist();
+  if (!_visibilityBound) {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && syncReady()) pullFromGist();
+    });
+    _visibilityBound = true;
+  }
+  clearInterval(_pullTimer);
+  _pullTimer = setInterval(() => { if (syncReady()) pullFromGist(); }, PULL_INTERVAL);
+}
+
+function fmtTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+}
+function updateSyncStatusUI() {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  if (!syncReady()) { el.textContent = '未配置'; return; }
+  const parts = [];
+  if (syncStatus.busy) parts.push('同步中…');
+  if (syncStatus.lastError) parts.push('⚠ ' + syncStatus.lastError);
+  parts.push(`↑ ${fmtTime(syncStatus.lastPushAt)}`);
+  parts.push(`↓ ${fmtTime(syncStatus.lastPullAt)}`);
+  el.textContent = parts.join(' · ');
+}
+
+function openSyncModal() {
+  document.getElementById('sync-token').value = syncConfig.token || '';
+  document.getElementById('sync-gistid').value = syncConfig.gistId || '';
+  document.getElementById('sync-auto').checked = syncConfig.autoSync !== false;
+  document.getElementById('sync-modal').classList.add('active');
+  updateSyncStatusUI();
+}
+function closeSyncModal() {
+  document.getElementById('sync-modal').classList.remove('active');
+}
+function saveSyncSettings() {
+  syncConfig.token = document.getElementById('sync-token').value.trim();
+  syncConfig.gistId = document.getElementById('sync-gistid').value.trim();
+  syncConfig.autoSync = document.getElementById('sync-auto').checked;
+  saveSyncConfig();
+  closeSyncModal();
+  toast(syncReady() ? '同步设置已保存' : '已保存（还需 Token + Gist ID 才能同步）', 'success');
+  startCloudSync();
 }
 
 // =========================================================================
@@ -3648,7 +4130,7 @@ function renderAIEntryPreview(entry) {
 
 function applyAIEntry() {
   if (!_aiAddLastEntry) { toast('没有可应用的 AI 结果', 'error'); return; }
-  const entry = { ..._aiAddLastEntry, id: 'ai-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6) };
+  const entry = { ..._aiAddLastEntry, id: 'ai-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), updatedAt: Date.now() };
   state.entries.push(entry);
   state.selectedEntryId = entry.id;
   saveToStorage();
@@ -4088,9 +4570,10 @@ document.addEventListener('keydown', (e) => {
 
   if (inField || anyModalActive) return;
 
-  // `/`：聚焦搜索
+  // `/`：聚焦搜索（若 header 折叠则先展开）
   if (e.key === '/') {
     e.preventDefault();
+    expandHeaderIfCollapsed();
     document.getElementById('search-input').focus();
     return;
   }
@@ -4117,6 +4600,9 @@ document.addEventListener('keydown', (e) => {
 // BOOT
 // =========================================================================
 window.addEventListener('DOMContentLoaded', init);
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
 </script>
 
 </body>

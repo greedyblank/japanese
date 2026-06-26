@@ -63,7 +63,7 @@ function loadApp(entries = [], storedEntries = null) {
   };
   vm.createContext(sandbox);
   vm.runInContext(`${source}\n;globalThis.__testApi = {
-    state, init, selectLayer, setSortMode, renderWordsList, renderDetail, findIncompleteEntries, applyCompletions,
+    state, init, selectLayer, setSortMode, renderWordsList, renderDetail, findIncompleteEntries, applyCompletions, mergeState, deleteCurrent,
     completionMeta: COMPLETION_FIELD_META, taxonomyRoots: TAG_TAXONOMY_ROOTS, routeTagByKeyword,
     setCompletionConfig: value => { completionConfig = value; },
   };`, sandbox);
@@ -180,4 +180,60 @@ test('selecting a layer picks the first displayed root and word', () => {
 
   assert.equal(api.state.filter.root, 'he');
   assert.equal(api.state.selectedEntryId, 'he-first');
+});
+
+test('mergeState: 新增取并集，同 id 以 updatedAt 大者胜', () => {
+  const { api } = loadApp([]);
+  const local = { entries: [
+    { id: 'a', kana: 'A', updatedAt: 100 },
+    { id: 'b', kana: 'B-local', updatedAt: 100 },
+  ], tombstones: [], tagGraph: {}, tagGraphUpdatedAt: 0 };
+  const remote = { entries: [
+    { id: 'b', kana: 'B-remote', updatedAt: 200 },   // 更新更晚，应胜出
+    { id: 'c', kana: 'C', updatedAt: 150 },           // 新增
+  ], tombstones: [], tagGraph: {}, tagGraphUpdatedAt: 0 };
+  const byId = Object.fromEntries(api.mergeState(local, remote).entries.map(e => [e.id, e]));
+  assert.deepEqual(Object.keys(byId).sort(), ['a', 'b', 'c']);
+  assert.equal(byId.b.kana, 'B-remote');
+  assert.equal(byId.a.kana, 'A');
+  assert.equal(byId.c.kana, 'C');
+});
+
+test('mergeState: tombstone 使删除跨端生效', () => {
+  const { api } = loadApp([]);
+  const local = { entries: [{ id: 'x', kana: 'X', updatedAt: 100 }], tombstones: [], tagGraph: {}, tagGraphUpdatedAt: 0 };
+  const remote = { entries: [{ id: 'x', kana: 'X', updatedAt: 100 }], tombstones: [{ id: 'x', deletedAt: 300 }], tagGraph: {}, tagGraphUpdatedAt: 0 };
+  const m = api.mergeState(local, remote);
+  assert.equal(m.entries.length, 0);                 // x 被远端删除
+  assert.equal(m.tombstones.length, 1);
+  assert.equal(m.tombstones[0].id, 'x');
+});
+
+test('mergeState: 删除后又有更新则保留（updatedAt > deletedAt）', () => {
+  const { api } = loadApp([]);
+  const local = { entries: [{ id: 'y', kana: 'Y-edited', updatedAt: 500 }], tombstones: [{ id: 'y', deletedAt: 300 }], tagGraph: {}, tagGraphUpdatedAt: 0 };
+  const remote = { entries: [], tombstones: [], tagGraph: {}, tagGraphUpdatedAt: 0 };
+  const m = api.mergeState(local, remote);
+  assert.equal(m.entries.length, 1);
+  assert.equal(m.entries[0].kana, 'Y-edited');       // 编辑晚于删除，取消删除
+});
+
+test('mergeState: tagGraph 整体 last-write-wins', () => {
+  const { api } = loadApp([]);
+  const local = { entries: [], tombstones: [], tagGraph: { old: { parent: null } }, tagGraphUpdatedAt: 100 };
+  const remote = { entries: [], tombstones: [], tagGraph: { new: { parent: null } }, tagGraphUpdatedAt: 200 };
+  const m = api.mergeState(local, remote);
+  assert.deepEqual(Object.keys(m.tagGraph), ['new']);  // remote 更新，整体覆盖
+  assert.equal(m.tagGraphUpdatedAt, 200);
+});
+
+test('deleteCurrent 写入墓碑（使删除可跨端同步）', () => {
+  const { api } = loadApp([]);
+  api.state.entries = [{ id: 'x', kana: 'X', updatedAt: 1 }];
+  api.state.selectedEntryId = 'x';
+  api.deleteCurrent();
+  assert.equal(api.state.entries.length, 0);          // 从活动列表移除
+  assert.equal(api.state.tombstones.length, 1);       // 记入墓碑
+  assert.equal(api.state.tombstones[0].id, 'x');
+  assert.ok(api.state.tombstones[0].deletedAt > 0);
 });
