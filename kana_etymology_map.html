@@ -858,6 +858,12 @@ input, textarea, select { font: inherit; }
   <div class="layer-grid" id="layer-grid" style="display:none;"></div>
 </section>
 
+<!-- ============================== 五十音行导图 ============================== -->
+<section class="atlas">
+  <h2 class="atlas-toggle" onclick="toggleGojuon()" style="cursor:pointer;user-select:none;"> phon 五十音行导图 <span id="gojuon-arrow">▸</span></h2>
+  <div id="gojuon-grid" class="layer-grid" style="display:none;"></div>
+</section>
+
 <!-- ============================== 3-pane Main View ============================== -->
 <section class="main-view">
   <!-- Pane 1: Roots -->
@@ -1519,6 +1525,7 @@ function init() {
     saveToStorage();
   }
   renderLayerGrid();
+  renderGojuonGrid();
   renderTagCloud();
   renderRootsList();
   renderWordsList();
@@ -3277,6 +3284,49 @@ function editRootCore(key) {
   saveToStorage();
   renderRootsList();
   renderDetail();
+}
+
+// 五十音行导图（按音行聚合音根，除语义层外的另一种结构）
+const GOJUON_ROWS = [
+  { id:'vowel', name:'あ行·元音', chars:'あいうえお' },
+  { id:'k', name:'か行·k', chars:'かきくけこがぎぐげご' },
+  { id:'s', name:'さ行·s', chars:'さしすせそざじずぜぞ' },
+  { id:'t', name:'た行·t', chars:'たちつてとだぢづでどっ' },
+  { id:'n', name:'な行·n', chars:'なにぬねの' },
+  { id:'h', name:'は行·h', chars:'はひふへほばびぶべぼぱぴぷぺぽ' },
+  { id:'m', name:'ま行·m', chars:'まみむめも' },
+  { id:'y', name:'や行·y', chars:'やゆよ' },
+  { id:'r', name:'ら行·r', chars:'らりるれろ' },
+  { id:'w', name:'わ行·w', chars:'わをん' },
+];
+function kanaToRow(kana) {
+  const c = (kana || '').trim()[0];
+  if (!c) return null;
+  for (const row of GOJUON_ROWS) if (row.chars.includes(c)) return row.id;
+  return null;
+}
+function toggleGojuon() {
+  const g = document.getElementById('gojuon-grid');
+  const a = document.getElementById('gojuon-arrow');
+  const show = g.style.display === 'none';
+  g.style.display = show ? '' : 'none';
+  if (a) a.textContent = show ? '▾' : '▸';
+}
+function renderGojuonGrid() {
+  const grid = document.getElementById('gojuon-grid');
+  if (!grid) return;
+  const roots = Object.entries(window.KANA_DATA?.ROOTS || {});
+  grid.innerHTML = GOJUON_ROWS.map(row => {
+    const rowRoots = roots.filter(([_, r]) => kanaToRow(r.kana) === row.id);
+    if (rowRoots.length === 0) return '';
+    const wordCount = rowRoots.reduce((s, [key]) => s + state.entries.filter(e => e.root === key).length, 0);
+    const rootChips = rowRoots.map(([key, r]) => `<span class="tag-pill" onclick="selectRoot('${key}')" style="cursor:pointer;">${escapeHtml((r.kana||'').split(' ')[0])}</span>`).join(' ');
+    return `<div class="layer-btn" style="display:block;text-align:left;padding:8px 10px;">
+      <span class="layer-name">${row.name}</span>
+      <span class="layer-count">${wordCount}</span>
+      <div style="margin-top:4px;font-size:11px;line-height:1.8;">${rootChips}</div>
+    </div>`;
+  }).join('');
 }
 
 // =========================================================================
