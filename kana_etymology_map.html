@@ -1434,12 +1434,14 @@ const TAGGRAPH_KEY = 'japanese_kana_taggraph_v1';
 const TOMBSTONES_KEY = 'japanese_kana_tombstones_v1';   // 已删除词条的墓碑（跨端同步「删除」用）
 const SYNC_KEY = 'japanese_kana_sync_v1';               // Gist 同步配置
 const META_KEY = 'japanese_kana_meta_v1';               // 同步元数据（tagGraphUpdatedAt 等）
+const ROOT_OVERRIDES_KEY = 'japanese_kana_rootcore_v1'; // 用户编辑的音根 core 覆盖
 
 let state = {
   entries: [],            // 用户词条（含导入的默认数据）
   tagGraph: {},           // 标签层级图 {tagId: {parent, aliases[], related[]}}
   tombstones: [],         // 已删词条墓碑 [{id, deletedAt}]，用于跨端同步「删除」
   tagGraphUpdatedAt: 0,   // tagGraph 整体时间戳（多端 last-write-wins 用）
+  rootCoreOverrides: {},  // 用户编辑的音根 core 覆盖 {rootKey: core字符串}
   filter: {
     layer: null,          // 选中的层 id (A-R)，null = 全部
     root: null,           // 选中的音根 key，null = 全部
@@ -1559,6 +1561,7 @@ function saveToStorage() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
     localStorage.setItem(TAGGRAPH_KEY, JSON.stringify(state.tagGraph || {}));
     localStorage.setItem(TOMBSTONES_KEY, JSON.stringify(state.tombstones || []));
+    localStorage.setItem(ROOT_OVERRIDES_KEY, JSON.stringify(state.rootCoreOverrides || {}));
     saveMetaToStorage();
     if (fileSyncState.handle) syncToFileDebounced();
     scheduleCloudSync();   // Gist 多端同步（debounce；未配置 token 时为空操作）
@@ -1574,6 +1577,8 @@ function loadFromStorage() {
     if (tg) state.tagGraph = JSON.parse(tg);
     const tb = localStorage.getItem(TOMBSTONES_KEY);
     if (tb) state.tombstones = JSON.parse(tb);
+    const rco = localStorage.getItem(ROOT_OVERRIDES_KEY);
+    if (rco) state.rootCoreOverrides = JSON.parse(rco);
     loadMetaFromStorage();
     lastTagGraphSig = JSON.stringify(state.tagGraph || {});
   } catch (e) {
@@ -1751,13 +1756,16 @@ function romanizeKana(s) {
   return out;
 }
 function getRoot(key) {
-  return (window.KANA_DATA?.ROOTS || {})[key];
+  const r = (window.KANA_DATA?.ROOTS || {})[key];
+  if (!r) return r;
+  const ov = state.rootCoreOverrides?.[key];
+  return ov ? { ...r, core: ov } : r;
 }
 function getRootsByLayer(layerId) {
   const roots = window.KANA_DATA?.ROOTS || {};
   return Object.entries(roots)
     .filter(([_, r]) => r.layer === layerId)
-    .map(([key, r]) => ({ key, ...r }));
+    .map(([key, r]) => ({ key, ...r, core: state.rootCoreOverrides?.[key] ?? r.core }));
 }
 
 function getEntryDisplayName(entry) {
@@ -1992,7 +2000,7 @@ function renderRootsList() {
       html += `
         <div class="root-item ${active}" onclick="selectRoot('${r.key}')">
           <div class="root-kana">${r.kana}</div>
-          <div class="root-core">${r.core}</div>
+          <div class="root-core">${r.core} <span style="cursor:pointer;opacity:0.5;font-size:11px;" onclick="event.stopPropagation();editRootCore('${r.key}')" title="编辑核心语义">✎</span></div>
           <div class="root-meta">${wordCount} 词 · ${r.examples?.length || 0} 例</div>
         </div>
       `;
@@ -3255,6 +3263,22 @@ function renderRecent() {
   }).join('') : '<div class="detail-empty">还没有用户添加的词条（仅统计手动新增）</div>';
 }
 
+// 编辑音根核心语义 core（覆盖默认，持久化 + 同步）
+function editRootCore(key) {
+  const r = getRoot(key);
+  const orig = (window.KANA_DATA?.ROOTS || {})[key]?.core || '';
+  const cur = r?.core || '';
+  const nv = prompt(`编辑音根 ${r?.kana || key} 的核心语义（/ 分隔，如 闭合/孕育/模糊/内聚）：`, cur);
+  if (nv === null) return;
+  const v = nv.trim();
+  if (v === orig) delete state.rootCoreOverrides[key];
+  else if (v) state.rootCoreOverrides[key] = v;
+  else return;
+  saveToStorage();
+  renderRootsList();
+  renderDetail();
+}
+
 // =========================================================================
 // SORT MODE
 // =========================================================================
@@ -3373,6 +3397,7 @@ function buildPayload() {
     tagGraph: state.tagGraph || {},
     tombstones: state.tombstones || [],
     tagGraphUpdatedAt: state.tagGraphUpdatedAt || 0,
+    rootCoreOverrides: state.rootCoreOverrides || {},
   };
 }
 const payloadSig = (p) => JSON.stringify(p);
@@ -3398,7 +3423,8 @@ function mergeState(local, remote) {
   });
   const ltg = local.tagGraphUpdatedAt || 0, rtg = remote.tagGraphUpdatedAt || 0;
   const tagGraph = rtg > ltg ? (remote.tagGraph || {}) : (local.tagGraph || {});
-  return { entries, tombstones: [...tomMap.values()], tagGraph, tagGraphUpdatedAt: Math.max(ltg, rtg) };
+  const rootCoreOverrides = { ...(local.rootCoreOverrides || {}), ...(remote.rootCoreOverrides || {}) };
+  return { entries, tombstones: [...tomMap.values()], tagGraph, tagGraphUpdatedAt: Math.max(ltg, rtg), rootCoreOverrides };
 }
 
 async function pushToGist() {
@@ -3451,6 +3477,7 @@ async function pullFromGist() {
     state.tombstones = merged.tombstones;
     state.tagGraph = merged.tagGraph;
     state.tagGraphUpdatedAt = merged.tagGraphUpdatedAt;
+    state.rootCoreOverrides = merged.rootCoreOverrides || {};
     lastTagGraphSig = JSON.stringify(state.tagGraph || {});
     _lastPushedSig = after;                            // 阻止随后 saveToStorage 触发的重复上传
     saveToStorage();                                   // 存盘（push 因 sig 相同会跳过）
