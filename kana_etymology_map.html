@@ -906,6 +906,19 @@ input, textarea, select { font: inherit; }
   <div id="tag-cloud-detail" class="hidden" style="margin-top:10px;"></div>
 </section>
 
+<!-- ============================== 最近添加 ============================== -->
+<section class="recent-words" style="max-width:1600px;margin:16px auto;padding:0 20px;">
+  <h2 class="atlas-toggle" onclick="toggleRecent()" style="cursor:pointer;user-select:none;">🕘 最近添加 <span id="recent-arrow">▸</span></h2>
+  <div id="recent-body" style="display:none;">
+    <div style="margin:8px 0;display:flex;gap:6px;">
+      <button class="btn recent-n-btn" onclick="setRecentN(10,event)" style="background:var(--accent);color:var(--bg);">10</button>
+      <button class="btn recent-n-btn" onclick="setRecentN(20,event)">20</button>
+      <button class="btn recent-n-btn" onclick="setRecentN(50,event)">50</button>
+    </div>
+    <div id="recent-list"></div>
+  </div>
+</section>
+
 <!-- ============================== Add/Edit Modal ============================== -->
 <div class="modal-backdrop" id="add-modal">
   <div class="modal">
@@ -1865,7 +1878,7 @@ function getFilteredEntries() {
     if (f.tag && !(e.tags || []).includes(f.tag)) return false;
     if (f.search) {
       const q = f.search.toLowerCase();
-      const hay = [e.kana, e.kanji, e.meaning, e.analysis, ...(e.tags || [])].join(' ').toLowerCase();
+      const hay = [e.kana, e.kanji, e.roman, autoRoman(e.kana), e.meaning, e.analysis, ...(e.tags || [])].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -2900,10 +2913,22 @@ function updateStats() {
 // =========================================================================
 function onSearchInput(v) {
   state.filter.search = v.trim();
+  if (v.trim()) { state.filter.root = null; state.filter.layer = null; state.filter.tag = null; }
   document.getElementById('search-clear').style.display = v ? 'block' : 'none';
-  state.selectedEntryId = null;
+  if (v.trim()) {
+    const first = getFilteredEntries()[0];
+    state.selectedEntryId = first ? first.id : null;
+  } else {
+    state.selectedEntryId = null;
+  }
   renderWordsList();
   renderDetail();
+  if (state.selectedEntryId) {
+    requestAnimationFrame(() => {
+      const el = document.querySelector('.word-item.active');
+      if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+  }
 }
 function clearSearch() {
   document.getElementById('search-input').value = '';
@@ -3193,6 +3218,41 @@ function toggleAtlas() {
   const show = g.style.display === 'none';
   g.style.display = show ? '' : 'none';
   if (a) a.textContent = show ? '▾' : '▸';
+}
+
+// 最近添加（按 id 内嵌时间戳排序，默认收起）
+let _recentN = 10, _recentCollapsed = true;
+function parseEntryTime(e) {
+  const m = /-(\d{13})-/.exec(e.id || '');
+  return m ? Number(m[1]) : (e.updatedAt || 0);
+}
+function toggleRecent() {
+  _recentCollapsed = !_recentCollapsed;
+  const body = document.getElementById('recent-body');
+  const arr = document.getElementById('recent-arrow');
+  if (body) body.style.display = _recentCollapsed ? 'none' : '';
+  if (arr) arr.textContent = _recentCollapsed ? '▸' : '▾';
+  if (!_recentCollapsed) renderRecent();
+}
+function setRecentN(n, ev) {
+  _recentN = n;
+  document.querySelectorAll('.recent-n-btn').forEach(b => { b.style.background = ''; b.style.color = ''; });
+  if (ev && ev.target) { ev.target.style.background = 'var(--accent)'; ev.target.style.color = 'var(--bg)'; }
+  renderRecent();
+}
+function renderRecent() {
+  const list = document.getElementById('recent-list');
+  if (!list) return;
+  const items = state.entries
+    .filter(e => /-(\d{13})-/.test(e.id || ''))
+    .sort((a, b) => parseEntryTime(b) - parseEntryTime(a))
+    .slice(0, _recentN);
+  list.innerHTML = items.length ? items.map(e => {
+    const t = parseEntryTime(e);
+    const d = t ? new Date(t) : null;
+    const ts = d ? `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` : '';
+    return `<div class="word-item" onclick="selectEntry('${e.id}')"><span class="word-kana">${escapeHtml(getEntryDisplayName(e))}</span> <span class="word-meaning">${escapeHtml((e.meaning||'').split(/[;；?？]/)[0])}</span><span style="color:var(--fg-dim);font-size:10px;float:right;">${ts}</span></div>`;
+  }).join('') : '<div class="detail-empty">还没有用户添加的词条（仅统计手动新增）</div>';
 }
 
 // =========================================================================
