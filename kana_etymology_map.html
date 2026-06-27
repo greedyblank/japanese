@@ -854,8 +854,8 @@ input, textarea, select { font: inherit; }
 
 <!-- ============================== Layer Atlas ============================== -->
 <section class="atlas">
-  <h2>语义层级导图 · Layer Atlas （A → R）</h2>
-  <div class="layer-grid" id="layer-grid"></div>
+  <h2 class="atlas-toggle" onclick="toggleAtlas()" style="cursor:pointer;user-select:none;">语义层级导图 · Layer Atlas （A → R） <span id="atlas-arrow">▸</span></h2>
+  <div class="layer-grid" id="layer-grid" style="display:none;"></div>
 </section>
 
 <!-- ============================== 3-pane Main View ============================== -->
@@ -3187,6 +3187,14 @@ function clearAll() {
   toast('已清空全部词条');
 }
 
+function toggleAtlas() {
+  const g = document.getElementById('layer-grid');
+  const a = document.getElementById('atlas-arrow');
+  const show = g.style.display === 'none';
+  g.style.display = show ? '' : 'none';
+  if (a) a.textContent = show ? '▾' : '▸';
+}
+
 // =========================================================================
 // SORT MODE
 // =========================================================================
@@ -3915,14 +3923,22 @@ async function callOpenAI(settings, prompt, maxTokens) {
   return data.choices?.[0]?.message?.content || '';
 }
 
-// extractJSON — strips markdown fences, slices {...}
+// extractJSON — 提取 ```json``` 代码块或 {...} / [...]
 function extractJSON(text) {
+  if (!text || !text.trim()) throw new Error('AI 响应为空');
   let t = text.trim();
-  t = t.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
-  const start = t.indexOf('{');
-  const end = t.lastIndexOf('}');
-  if (start < 0 || end < 0) throw new Error('响应中未找到 JSON');
-  return JSON.parse(t.slice(start, end + 1));
+  // 提取 ```json ... ``` 代码块（任意位置，不限于首尾）
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) t = fence[1].trim();
+  // 优先 {...}；退回 [...] 取首元素
+  const oS = t.indexOf('{'), oE = t.lastIndexOf('}');
+  if (oS >= 0 && oE > oS) return JSON.parse(t.slice(oS, oE + 1));
+  const aS = t.indexOf('['), aE = t.lastIndexOf(']');
+  if (aS >= 0 && aE > aS) {
+    const arr = JSON.parse(t.slice(aS, aE + 1));
+    return Array.isArray(arr) ? (arr[0] || {}) : arr;
+  }
+  throw new Error('响应中未找到 JSON（AI 可能返回了纯文本，请检查 prompt 或重试）');
 }
 
 // =========================================================================
